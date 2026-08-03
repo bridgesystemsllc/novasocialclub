@@ -25,6 +25,7 @@ externalPort = 3003
 [deployment]
 deploymentTarget = "autoscale"
 run = ["node", "server/index.js"]
+build = ["bash", "-c", "node server/migrate.js && node server/seed-admin.js"]
 
 [userenv]
 
