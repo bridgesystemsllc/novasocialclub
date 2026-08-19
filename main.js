@@ -97,6 +97,80 @@
 
   window.addEventListener('scroll', setActiveLink, { passive: true });
 
+  /* ── Live POSH events ───────────────────────────────────── */
+  const eventsGrid = document.querySelector('.events__grid');
+  const novaTimeZone = 'America/New_York';
+
+  function addText(parent, tagName, className, text) {
+    const el = document.createElement(tagName);
+    el.className = className;
+    el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  }
+
+  function eventType(title) {
+    const displayName = String(title || '').split('|')[0].trim();
+    const divider = displayName.indexOf(':');
+    return divider > 0 ? displayName.slice(0, divider) : 'NOVA Event';
+  }
+
+  function eventTitle(title) {
+    const displayName = String(title || '').split('|')[0].trim();
+    const divider = displayName.indexOf(':');
+    return divider > 0 ? displayName.slice(divider + 1).trim() : displayName;
+  }
+
+  function renderPoshEvents(events) {
+    if (!eventsGrid || !events.length) return;
+
+    eventsGrid.replaceChildren();
+    events.slice(0, 3).forEach(function (event, index) {
+      const date = new Date(event.startsAt);
+      const featured = index === 2;
+      const card = document.createElement('article');
+      card.className = 'event-card reveal visible' + (featured ? ' event-card--featured' : '');
+
+      const header = document.createElement('div');
+      header.className = 'event-card__header';
+      const badge = document.createElement('div');
+      badge.className = 'event-card__badge' + (featured ? ' event-card__badge--cream' : '');
+      addText(badge, 'span', 'badge-month', new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: novaTimeZone }).format(date).toUpperCase());
+      addText(badge, 'span', 'badge-day', new Intl.DateTimeFormat('en-US', { day: 'numeric', timeZone: novaTimeZone }).format(date));
+      header.appendChild(badge);
+      addText(header, 'span', 'event-card__type' + (featured ? ' event-card__type--cream' : ''), eventType(event.title));
+      card.appendChild(header);
+
+      addText(card, 'h3', 'event-card__title', eventTitle(event.title));
+      addText(card, 'p', 'event-card__location', [event.venueName, event.city].filter(Boolean).join(' · '));
+      addText(card, 'p', 'event-card__desc', event.description || 'Join the NOVA community for this upcoming experience.');
+
+      const link = document.createElement('a');
+      link.href = event.eventUrl;
+      link.className = 'event-card__link' + (featured ? ' event-card__link--cream' : '');
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.append(document.createTextNode('RSVP on POSH '));
+      addText(link, 'span', '', '→');
+      card.appendChild(link);
+      eventsGrid.appendChild(card);
+    });
+  }
+
+  if (eventsGrid) {
+    fetch('/api/events')
+      .then(function (response) {
+        if (!response.ok) throw new Error('Events unavailable');
+        return response.json();
+      })
+      .then(function (payload) {
+        if (payload.ok) renderPoshEvents(payload.events || []);
+      })
+      .catch(function () {
+        // The static event cards remain visible as a graceful fallback.
+      });
+  }
+
   /* ── Form submission handler (shared) ───────────────────── */
   function wireForm(formId, successId) {
     const form = document.getElementById(formId);

@@ -1,0 +1,1 @@
+- [POSH event source](posh-event-source.md) — POSH blocks generic cloud browser scraping; use the validated upcoming-events actor and cached sync.

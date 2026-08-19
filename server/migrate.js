@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS email_log (
   error TEXT,
   sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS posh_events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  event_url TEXT NOT NULL,
+  starts_at TIMESTAMPTZ NOT NULL,
+  venue_name TEXT,
+  city TEXT,
+  description TEXT,
+  image_url TEXT,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 async function migrate(db) {
