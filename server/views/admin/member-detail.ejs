@@ -18,6 +18,27 @@
     <button>Sync Stripe Customer</button>
   </form>
 </div>
+<div class="card">
+  <h3>Billing</h3>
+  <% if (subscription && (subscription.status === 'active' || subscription.status === 'trialing')) { %>
+    <p><b>Subscription:</b> <%= subscription.status %></p>
+    <% if (subscription.current_period_end) { %>
+      <p><b>Current period ends:</b> <%= new Date(subscription.current_period_end).toLocaleDateString() %></p>
+    <% } %>
+  <% } else { %>
+    <p><b>Subscription:</b> No active subscription</p>
+    <% if (!stripePriceId) { %>
+      <p class="alert alert-warning">STRIPE_PRICE_ID not configured</p>
+    <% } else if (!m.stripe_customer_id) { %>
+      <p class="alert alert-warning">Sync Stripe Customer first</p>
+    <% } else { %>
+      <form method="post" action="/admin/members/<%= m.id %>/start-billing" class="actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn-primary">Start billing — $100/mo</button>
+      </form>
+    <% } %>
+  <% } %>
+</div>
 <div class="card"><h3>Membership level</h3>
   <form method="post" action="/admin/members/<%= m.id %>/level" class="actions">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">

@@ -17,6 +17,40 @@ function getStripe() {
   return stripeInstance;
 }
 
+async function createCheckoutSession(member, successUrl, cancelUrl) {
+  const stripe = getStripe();
+  if (!stripe) {
+    return { success: false, error: 'Stripe not configured' };
+  }
+
+  if (!config.stripePriceId) {
+    return { success: false, error: 'STRIPE_PRICE_ID not configured' };
+  }
+
+  if (!member.stripe_customer_id) {
+    return { success: false, error: 'Sync Stripe Customer first' };
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: member.stripe_customer_id,
+      line_items: [{
+        price: config.stripePriceId,
+        quantity: 1,
+      }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        memberId: String(member.id),
+      },
+    });
+    return { success: true, sessionId: session.id, url: session.url };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
 async function createOrRetrieveCustomer(member, applicationId) {
   const stripe = getStripe();
   if (!stripe) {
@@ -53,4 +87,4 @@ async function createOrRetrieveCustomer(member, applicationId) {
   }
 }
 
-module.exports = { getStripe, createOrRetrieveCustomer };
+module.exports = { getStripe, createOrRetrieveCustomer, createCheckoutSession };

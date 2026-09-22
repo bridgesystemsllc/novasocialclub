@@ -79,6 +79,17 @@ CREATE TABLE IF NOT EXISTS email_log (
   error TEXT,
   sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id SERIAL PRIMARY KEY,
+  member_id INTEGER NOT NULL UNIQUE REFERENCES members(id),
+  stripe_subscription_id TEXT UNIQUE,
+  stripe_price_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'incomplete',
+  current_period_end TIMESTAMPTZ,
+  cancel_at_period_end BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 async function migrate(db) {
@@ -156,6 +167,27 @@ async function migrate(db) {
     UPDATE applications SET membership_level_id = $1
     WHERE membership_level_id IS NULL AND membership_level IS NOT NULL
   `, [memberLevelId]);
+
+  // Add subscriptions table for existing databases
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id SERIAL PRIMARY KEY,
+        member_id INTEGER NOT NULL UNIQUE REFERENCES members(id),
+        stripe_subscription_id TEXT UNIQUE,
+        stripe_price_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'incomplete',
+        current_period_end TIMESTAMPTZ,
+        cancel_at_period_end BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+  } catch (err) {
+    if (!err.message.includes('already exists')) {
+      throw err;
+    }
+  }
 }
 
 module.exports = { migrate, SCHEMA };
