@@ -1,4 +1,9 @@
 <p><a href="/admin/applications">← All applications</a></p>
+<% if (typeof stripeMsg !== 'undefined' && stripeMsg) { %>
+<div class="alert <%= stripeMsg.type === 'success' ? 'alert-success' : 'alert-warning' %>">
+  <%= stripeMsg.text %>
+</div>
+<% } %>
 <h1><%= a.first_name %> <%= a.last_name %> <span class="badge"><%= a.status %></span></h1>
 <div class="card">
   <p><b>Email:</b> <%= a.email %> &nbsp; <b>Phone:</b> <%= a.phone || '—' %></p>

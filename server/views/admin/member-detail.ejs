@@ -1,9 +1,22 @@
 <p><a href="/admin/members">← All members</a></p>
+<% if (typeof stripeMsg !== 'undefined' && stripeMsg) { %>
+<div class="alert <%= stripeMsg.type === 'success' ? 'alert-success' : 'alert-warning' %>">
+  <%= stripeMsg.text %>
+</div>
+<% } %>
 <h1><%= m.first_name %> <%= m.last_name %> <span class="badge"><%= m.status %></span></h1>
 <div class="card">
   <p><b>Email:</b> <%= m.email %> &nbsp; <b>Phone:</b> <%= m.phone || '—' %></p>
   <p><b>Company:</b> <%= m.company || '—' %> &nbsp; <b>LinkedIn:</b> <%= m.linkedin || '—' %></p>
   <p><b>Login:</b> <%= m.password_hash ? 'active' : 'not set yet' %></p>
+</div>
+<div class="card">
+  <h3>Stripe Customer</h3>
+  <p><b>Customer ID:</b> <%= m.stripe_customer_id || '—' %></p>
+  <form method="post" action="/admin/members/<%= m.id %>/sync-stripe-customer" class="actions">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button>Sync Stripe Customer</button>
+  </form>
 </div>
 <div class="card"><h3>Membership level</h3>
   <form method="post" action="/admin/members/<%= m.id %>/level" class="actions">

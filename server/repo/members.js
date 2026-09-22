@@ -36,5 +36,6 @@ async function setPassword(db, id, hash) {
 async function setStatus(db, id, status) { const { rows } = await db.query('UPDATE members SET status=$2 WHERE id=$1 RETURNING *', [id, status]); return rows[0]; }
 async function setLevel(db, id, level) { const { rows } = await db.query('UPDATE members SET membership_level=$2 WHERE id=$1 RETURNING *', [id, level]); return rows[0]; }
 async function setSetToken(db, id, token, expires) { const { rows } = await db.query('UPDATE members SET set_password_token=$2, token_expires_at=$3 WHERE id=$1 RETURNING *', [id, token, expires]); return rows[0]; }
+async function setStripeCustomerId(db, id, stripeCustomerId) { const { rows } = await db.query('UPDATE members SET stripe_customer_id=$2 WHERE id=$1 RETURNING *', [id, stripeCustomerId]); return rows[0]; }
 
-module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, setPassword, setStatus, setLevel, setSetToken };
+module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, setPassword, setStatus, setLevel, setSetToken, setStripeCustomerId };

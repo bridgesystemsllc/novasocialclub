@@ -13,6 +13,7 @@ const tokens = require('../tokens');
 const email = require('../email');
 const V = require('../validate');
 const { config } = require('../config');
+const { createOrRetrieveCustomer } = require('../stripe');
 
 const LEVELS = { founding: 'Founding Member', member: 'Member', associate: 'Associate' };
 
@@ -70,7 +71,13 @@ module.exports = function adminRoutes(getDb) {
     const db = await getDb();
     const a = await appsRepo.getById(db, Number(req.params.id));
     if (!a) return res.status(404).send('Not found');
-    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, csrfToken: res.locals.csrfToken, a, LEVELS });
+    let stripeMsg = null;
+    if (req.query.stripe === 'synced') {
+      stripeMsg = { type: 'success', text: 'Application accepted. Member created. Stripe Customer synced.' };
+    } else if (req.query.stripe === 'failed') {
+      stripeMsg = { type: 'warning', text: `Member created. Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'} — retry from member detail.` };
+    }
+    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, csrfToken: res.locals.csrfToken, a, LEVELS, stripeMsg });
   });
 
   router.post('/applications/:id/accept', async (req, res) => {
@@ -91,10 +98,24 @@ module.exports = function adminRoutes(getDb) {
     } else {
       member = await membersRepo.createFromApplication(db, a, level, token, expires);
     }
+
+    // Create Stripe Customer (non-blocking for membership)
+    let stripeMsg = '';
+    const stripeResult = await createOrRetrieveCustomer(member, a.id);
+    if (stripeResult.success) {
+      if (!stripeResult.existing) {
+        await membersRepo.setStripeCustomerId(db, member.id, stripeResult.customerId);
+      }
+      stripeMsg = 'stripe=synced';
+    } else {
+      stripeMsg = `stripe=failed&stripeError=${encodeURIComponent(stripeResult.error)}`;
+    }
+
+    // Welcome email must still send even if Stripe fails
     const url = `${config.appBaseUrl}/member/set-password?token=${token}`;
     const t = email.welcomeSetPasswordEmail(member, url);
     await email.sendEmail(db, { to: member.email, subject: t.subject, html: t.html, type: 'welcome_set_password', memberId: member.id });
-    res.redirect(`/admin/applications/${id}`);
+    res.redirect(`/admin/applications/${id}?${stripeMsg}`);
   });
 
   router.post('/applications/:id/reject', async (req, res) => {
@@ -127,7 +148,13 @@ module.exports = function adminRoutes(getDb) {
     const db = await getDb();
     const m = await membersRepo.getById(db, Number(req.params.id));
     if (!m) return res.status(404).send('Not found');
-    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, LEVELS });
+    let stripeMsg = null;
+    if (req.query.stripe === 'synced') {
+      stripeMsg = { type: 'success', text: 'Stripe Customer synced.' };
+    } else if (req.query.stripe === 'failed') {
+      stripeMsg = { type: 'warning', text: `Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'}. Retry from below.` };
+    }
+    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, LEVELS, stripeMsg });
   });
 
   router.post('/members/:id/level', async (req, res) => {
@@ -165,6 +192,21 @@ module.exports = function adminRoutes(getDb) {
     const body = String(req.body.body || '');
     await email.sendEmail(db, { to: m.email, subject, html: `<div style="font-family:Georgia,serif">${body}</div>`, type: 'member_email', memberId: m.id });
     res.redirect(`/admin/members/${m.id}`);
+  });
+
+  router.post('/members/:id/sync-stripe-customer', async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, Number(req.params.id));
+    if (!m) return res.status(404).send('Not found');
+    const stripeResult = await createOrRetrieveCustomer(m, m.application_id);
+    if (stripeResult.success) {
+      if (!stripeResult.existing || !m.stripe_customer_id) {
+        await membersRepo.setStripeCustomerId(db, m.id, stripeResult.customerId);
+      }
+      res.redirect(`/admin/members/${m.id}?stripe=synced`);
+    } else {
+      res.redirect(`/admin/members/${m.id}?stripe=failed&stripeError=${encodeURIComponent(stripeResult.error)}`);
+    }
   });
 
   router.get('/newsletter', async (req, res) => {
