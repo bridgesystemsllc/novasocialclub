@@ -71,6 +71,81 @@ async function createFromWebhook(db, memberId, stripeSubscriptionId, stripePrice
   return rows[0];
 }
 
+async function listWithMembers(db, { q, status, levelId } = {}) {
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+
+  if (q) {
+    const like = `%${q.toLowerCase()}%`;
+    conditions.push(`(lower(m.first_name) LIKE $${idx} OR lower(m.last_name) LIKE $${idx} OR lower(m.email) LIKE $${idx})`);
+    params.push(like);
+    idx++;
+  }
+
+  if (status === 'none') {
+    conditions.push('s.id IS NULL');
+  } else if (status && status !== 'all') {
+    conditions.push(`s.status = $${idx}`);
+    params.push(status);
+    idx++;
+  }
+
+  if (levelId && levelId !== 'all') {
+    conditions.push(`m.membership_level_id = $${idx}`);
+    params.push(Number(levelId));
+    idx++;
+  }
+
+  const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+  const { rows } = await db.query(`
+    SELECT 
+      m.id as member_id,
+      m.first_name,
+      m.last_name,
+      m.email,
+      m.stripe_customer_id,
+      l.name as level_name,
+      s.id as subscription_id,
+      s.stripe_subscription_id,
+      s.status as subscription_status,
+      s.current_period_end,
+      s.cancel_at_period_end
+    FROM members m
+    LEFT JOIN subscriptions s ON s.member_id = m.id
+    LEFT JOIN membership_levels l ON l.id = m.membership_level_id
+    ${whereClause}
+    ORDER BY m.created_at DESC
+    LIMIT 200
+  `, params);
+  return rows;
+}
+
+async function countsByStatus(db) {
+  const { rows } = await db.query(`
+    SELECT 
+      COALESCE(s.status, 'none') as status,
+      COUNT(*)::int as count
+    FROM members m
+    LEFT JOIN subscriptions s ON s.member_id = m.id
+    GROUP BY COALESCE(s.status, 'none')
+  `);
+  const counts = { active: 0, past_due: 0, canceled: 0, none: 0 };
+  for (const row of rows) {
+    if (row.status === 'active' || row.status === 'trialing') {
+      counts.active += row.count;
+    } else if (row.status === 'past_due') {
+      counts.past_due += row.count;
+    } else if (row.status === 'canceled') {
+      counts.canceled += row.count;
+    } else if (row.status === 'none') {
+      counts.none += row.count;
+    }
+  }
+  return counts;
+}
+
 module.exports = {
   getByMemberId,
   getByStripeSubscriptionId,
@@ -79,4 +154,6 @@ module.exports = {
   updateFromStripeSubscription,
   createFromWebhook,
   hasActiveSubscription,
+  listWithMembers,
+  countsByStatus,
 };
