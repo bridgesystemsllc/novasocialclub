@@ -4,6 +4,9 @@ const ejs = require('ejs');
 const path = require('path');
 const auth = require('../auth');
 const membersRepo = require('../repo/members');
+const subscriptionsRepo = require('../repo/subscriptions');
+const { createCheckoutSession } = require('../stripe');
+const { config } = require('../config');
 
 const PERKS = [
   'Complimentary access to member-only events',
@@ -64,7 +67,46 @@ module.exports = function memberRoutes(getDb) {
     const db = await getDb();
     const m = await membersRepo.getById(db, req.session.memberId);
     if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
-    render(res, 'member/home', { title: 'My Membership', nav: false, csrfToken: res.locals.csrfToken, m, levelLabel: m.level_name || 'Member', perks: PERKS });
+    const subscription = await subscriptionsRepo.getByMemberId(db, m.id);
+    const hasActiveSub = subscriptionsRepo.hasActiveSubscription(subscription);
+    const stripePriceId = config.stripePriceId;
+    let billingError = null;
+    if (req.query.billing === 'error') {
+      billingError = req.query.billingError || 'Billing error';
+    }
+    render(res, 'member/home', { title: 'My Membership', nav: false, csrfToken: res.locals.csrfToken, m, levelLabel: m.level_name || 'Member', perks: PERKS, subscription, hasActiveSub, stripePriceId, billingError });
+  });
+
+  router.post('/billing/checkout', auth.requireMember, async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, req.session.memberId);
+    if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
+
+    if (!config.stripePriceId) {
+      return res.redirect('/member?billing=error&billingError=' + encodeURIComponent('STRIPE_PRICE_ID not configured'));
+    }
+    if (!m.stripe_customer_id) {
+      return res.redirect('/member?billing=error&billingError=' + encodeURIComponent('Stripe Customer not synced. Contact support.'));
+    }
+
+    const successUrl = `${config.appBaseUrl}/member/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${config.appBaseUrl}/member/billing/cancel`;
+
+    const result = await createCheckoutSession(m, successUrl, cancelUrl);
+    if (!result.success) {
+      return res.redirect('/member?billing=error&billingError=' + encodeURIComponent(result.error));
+    }
+
+    await subscriptionsRepo.upsertIncomplete(db, m.id, config.stripePriceId);
+    res.redirect(result.url);
+  });
+
+  router.get('/billing/success', auth.requireMember, (req, res) => {
+    render(res, 'member/billing-success', { title: 'Payment Successful', nav: false, csrfToken: res.locals.csrfToken });
+  });
+
+  router.get('/billing/cancel', auth.requireMember, (req, res) => {
+    render(res, 'member/billing-cancel', { title: 'Payment Cancelled', nav: false, csrfToken: res.locals.csrfToken });
   });
 
   return router;

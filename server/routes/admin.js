@@ -14,7 +14,8 @@ const tokens = require('../tokens');
 const email = require('../email');
 const V = require('../validate');
 const { config } = require('../config');
-const { createOrRetrieveCustomer } = require('../stripe');
+const { createOrRetrieveCustomer, createCheckoutSession } = require('../stripe');
+const subscriptionsRepo = require('../repo/subscriptions');
 
 function renderPage(res, view, locals) {
   const viewsDir = path.join(__dirname, '..', 'views');
@@ -151,13 +152,17 @@ module.exports = function adminRoutes(getDb) {
     const m = await membersRepo.getById(db, Number(req.params.id));
     if (!m) return res.status(404).send('Not found');
     const levels = await levelsRepo.listActive(db);
+    const subscription = await subscriptionsRepo.getByMemberId(db, m.id);
     let stripeMsg = null;
     if (req.query.stripe === 'synced') {
       stripeMsg = { type: 'success', text: 'Stripe Customer synced.' };
     } else if (req.query.stripe === 'failed') {
       stripeMsg = { type: 'warning', text: `Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'}. Retry from below.` };
+    } else if (req.query.billing === 'error') {
+      stripeMsg = { type: 'warning', text: req.query.billingError || 'Billing error' };
     }
-    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, levels, stripeMsg });
+    const stripePriceId = config.stripePriceId;
+    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, levels, stripeMsg, subscription, stripePriceId });
   });
 
   router.post('/members/:id/level', async (req, res) => {
@@ -211,6 +216,30 @@ module.exports = function adminRoutes(getDb) {
     } else {
       res.redirect(`/admin/members/${m.id}?stripe=failed&stripeError=${encodeURIComponent(stripeResult.error)}`);
     }
+  });
+
+  router.post('/members/:id/start-billing', async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, Number(req.params.id));
+    if (!m) return res.status(404).send('Not found');
+
+    if (!config.stripePriceId) {
+      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent('STRIPE_PRICE_ID not configured')}`);
+    }
+    if (!m.stripe_customer_id) {
+      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent('Sync Stripe Customer first')}`);
+    }
+
+    const successUrl = `${config.appBaseUrl}/member/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${config.appBaseUrl}/member/billing/cancel`;
+
+    const result = await createCheckoutSession(m, successUrl, cancelUrl);
+    if (!result.success) {
+      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent(result.error)}`);
+    }
+
+    await subscriptionsRepo.upsertIncomplete(db, m.id, config.stripePriceId);
+    res.redirect(result.url);
   });
 
   // Levels CRUD

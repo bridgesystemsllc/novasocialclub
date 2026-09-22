@@ -19,6 +19,7 @@ const config = {
   // Use embedded PGlite when no real DATABASE_URL is present (local/test) or when forced.
   useMemoryDb: bool(process.env.USE_MEMORY_DB) || databaseUrl === '',
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
+  stripePriceId: process.env.STRIPE_PRICE_ID || '',
 };
 
 module.exports = { config };

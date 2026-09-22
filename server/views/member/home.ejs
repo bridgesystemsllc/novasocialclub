@@ -1,6 +1,27 @@
 <div class="card">
   <h1>Welcome, <%= m.first_name %></h1>
   <p><b>Membership:</b> <%= levelLabel %> &nbsp; <span class="badge"><%= m.status %></span></p>
+  <% if (billingError) { %>
+    <div class="alert alert-warning"><%= billingError %></div>
+  <% } %>
+  <% if (hasActiveSub) { %>
+    <p><b>Billing:</b> Active subscription</p>
+    <% if (subscription && subscription.current_period_end) { %>
+      <p><b>Next billing date:</b> <%= new Date(subscription.current_period_end).toLocaleDateString() %></p>
+    <% } %>
+  <% } else { %>
+    <p><b>Billing:</b> Payment required</p>
+    <% if (!stripePriceId) { %>
+      <p class="alert alert-warning">Billing is not configured. Contact support.</p>
+    <% } else if (!m.stripe_customer_id) { %>
+      <p class="alert alert-warning">Billing setup incomplete. Contact support.</p>
+    <% } else { %>
+      <form method="post" action="/member/billing/checkout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn-primary">Pay membership — $100/mo</button>
+      </form>
+    <% } %>
+  <% } %>
   <h3>Your perks</h3>
   <ul><% perks.forEach(function(p){ %><li><%= p %></li><% }); %></ul>
   <form method="post" action="/member/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button>Log out</button></form>
