@@ -18,6 +18,7 @@ const config = {
   isProd: process.env.NODE_ENV === 'production',
   // Use embedded PGlite when no real DATABASE_URL is present (local/test) or when forced.
   useMemoryDb: bool(process.env.USE_MEMORY_DB) || databaseUrl === '',
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
 };
 
 module.exports = { config };

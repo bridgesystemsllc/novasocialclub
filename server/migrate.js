@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS members (
   password_hash TEXT,
   set_password_token TEXT,
   token_expires_at TIMESTAMPTZ,
+  stripe_customer_id TEXT UNIQUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS newsletter_subscribers (
@@ -71,6 +72,18 @@ CREATE TABLE IF NOT EXISTS email_log (
 async function migrate(db) {
   const statements = SCHEMA.split(';').map(s => s.trim()).filter(Boolean);
   for (const stmt of statements) { await db.query(stmt); }
+  
+  // Add stripe_customer_id column if it doesn't exist (for existing databases)
+  try {
+    await db.query(`
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT UNIQUE
+    `);
+  } catch (err) {
+    // Column may already exist or DB doesn't support IF NOT EXISTS
+    if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
+      throw err;
+    }
+  }
 }
 
 module.exports = { migrate, SCHEMA };
