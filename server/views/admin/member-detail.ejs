@@ -21,7 +21,7 @@
 <div class="card"><h3>Membership level</h3>
   <form method="post" action="/admin/members/<%= m.id %>/level" class="actions">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <select name="level"><% Object.keys(LEVELS).forEach(function(k){ %><option value="<%= k %>" <%= m.membership_level===k?'selected':'' %>><%= LEVELS[k] %></option><% }); %></select>
+    <select name="levelId"><% levels.forEach(function(l){ %><option value="<%= l.id %>" <%= m.membership_level_id===l.id?'selected':'' %>><%= l.name %></option><% }); %></select>
     <button class="btn-primary">Update level</button>
   </form>
   <h3>Status</h3>

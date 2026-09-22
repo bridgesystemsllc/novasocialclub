@@ -5,7 +5,6 @@ const path = require('path');
 const auth = require('../auth');
 const membersRepo = require('../repo/members');
 
-const LEVELS = { founding: 'Founding Member', member: 'Member', associate: 'Associate' };
 const PERKS = [
   'Complimentary access to member-only events',
   'Priority access to programming',
@@ -65,7 +64,7 @@ module.exports = function memberRoutes(getDb) {
     const db = await getDb();
     const m = await membersRepo.getById(db, req.session.memberId);
     if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
-    render(res, 'member/home', { title: 'My Membership', nav: false, csrfToken: res.locals.csrfToken, m, levelLabel: LEVELS[m.membership_level], perks: PERKS });
+    render(res, 'member/home', { title: 'My Membership', nav: false, csrfToken: res.locals.csrfToken, m, levelLabel: m.level_name || 'Member', perks: PERKS });
   });
 
   return router;

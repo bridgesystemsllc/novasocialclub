@@ -5,6 +5,7 @@ const auth = require('../server/auth');
 const admins = require('../server/repo/admins');
 const membersRepo = require('../server/repo/members');
 const appsRepo = require('../server/repo/applications');
+const levelsRepo = require('../server/repo/levels');
 const { newToken, expiryFromNow } = require('../server/tokens');
 const email = require('../server/email');
 
@@ -12,8 +13,9 @@ test('admin can send a one-off email to a member', async () => {
   const db = await freshDb();
   await admins.upsert(db, 'a@n.com', await auth.hashPassword('pw12345'));
   email.__setSender(async () => ({ id: 'x' }));
+  const memberLevel = await levelsRepo.getBySlug(db, 'member');
   const a = await appsRepo.create(db, { first_name: 'M', last_name: 'X', email: 'm@x.com', phone: '', company: '', profession: '', linkedin: '', area: '', why: '' });
-  const m = await membersRepo.createFromApplication(db, a, 'member', newToken(), expiryFromNow(7));
+  const m = await membersRepo.createFromApplication(db, a, memberLevel.id, newToken(), expiryFromNow(7));
   const app = createApp({ db });
   const server = app.listen(0);
   const base = `http://localhost:${server.address().port}`;

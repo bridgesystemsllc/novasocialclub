@@ -2,6 +2,7 @@ const { test, expect } = require('bun:test');
 const { freshDb } = require('./helpers');
 const membersRepo = require('../server/repo/members');
 const appsRepo = require('../server/repo/applications');
+const levelsRepo = require('../server/repo/levels');
 const { config } = require('../server/config');
 
 test('stripe_customer_id column exists in members table', async () => {
@@ -34,6 +35,7 @@ test('stripe_customer_id column is unique', async () => {
 
 test('setStripeCustomerId updates member', async () => {
   const db = await freshDb();
+  const memberLevel = await levelsRepo.getBySlug(db, 'member');
   
   const app = await appsRepo.create(db, { 
     first_name: 'Test', last_name: 'User', email: 'test@example.com',
@@ -42,7 +44,7 @@ test('setStripeCustomerId updates member', async () => {
   
   const token = 'test-token-123';
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  const member = await membersRepo.createFromApplication(db, app, 'member', token, expires);
+  const member = await membersRepo.createFromApplication(db, app, memberLevel.id, token, expires);
   
   expect(member.stripe_customer_id).toBeNull();
   

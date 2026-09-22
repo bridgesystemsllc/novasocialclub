@@ -7,6 +7,16 @@ CREATE TABLE IF NOT EXISTS admins (
   password_hash TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS membership_levels (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  slug TEXT NOT NULL UNIQUE,
+  active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INT NOT NULL DEFAULT 0,
+  stripe_price_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS applications (
   id SERIAL PRIMARY KEY,
   first_name TEXT NOT NULL,
@@ -20,6 +30,7 @@ CREATE TABLE IF NOT EXISTS applications (
   why TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   membership_level TEXT,
+  membership_level_id INTEGER REFERENCES membership_levels(id),
   admin_notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   reviewed_at TIMESTAMPTZ
@@ -33,7 +44,8 @@ CREATE TABLE IF NOT EXISTS members (
   phone TEXT,
   company TEXT,
   linkedin TEXT,
-  membership_level TEXT NOT NULL,
+  membership_level TEXT,
+  membership_level_id INTEGER REFERENCES membership_levels(id),
   status TEXT NOT NULL DEFAULT 'active',
   password_hash TEXT,
   set_password_token TEXT,
@@ -79,11 +91,71 @@ async function migrate(db) {
       ALTER TABLE members ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT UNIQUE
     `);
   } catch (err) {
-    // Column may already exist or DB doesn't support IF NOT EXISTS
     if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
       throw err;
     }
   }
+
+  // Add membership_levels table for existing databases
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS membership_levels (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        slug TEXT NOT NULL UNIQUE,
+        active BOOLEAN NOT NULL DEFAULT true,
+        sort_order INT NOT NULL DEFAULT 0,
+        stripe_price_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+  } catch (err) {
+    if (!err.message.includes('already exists')) {
+      throw err;
+    }
+  }
+
+  // Add membership_level_id columns for existing databases
+  try {
+    await db.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS membership_level_id INTEGER REFERENCES membership_levels(id)`);
+  } catch (err) {
+    if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
+      throw err;
+    }
+  }
+  try {
+    await db.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS membership_level_id INTEGER REFERENCES membership_levels(id)`);
+  } catch (err) {
+    if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
+      throw err;
+    }
+  }
+
+  // Seed the default Member level
+  const { rows: existing } = await db.query(`SELECT id FROM membership_levels WHERE slug = 'member'`);
+  let memberLevelId;
+  if (existing.length === 0) {
+    const { rows } = await db.query(`
+      INSERT INTO membership_levels (name, slug, active, sort_order)
+      VALUES ('Member', 'member', true, 0)
+      RETURNING id
+    `);
+    memberLevelId = rows[0].id;
+  } else {
+    memberLevelId = existing[0].id;
+  }
+
+  // Migrate legacy TEXT membership_level values to the seed Member level
+  await db.query(`
+    UPDATE members SET membership_level_id = $1
+    WHERE membership_level_id IS NULL
+  `, [memberLevelId]);
+
+  await db.query(`
+    UPDATE applications SET membership_level_id = $1
+    WHERE membership_level_id IS NULL AND membership_level IS NOT NULL
+  `, [memberLevelId]);
 }
 
 module.exports = { migrate, SCHEMA };

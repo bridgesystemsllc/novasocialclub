@@ -9,13 +9,12 @@ const appsRepo = require('../repo/applications');
 const membersRepo = require('../repo/members');
 const subsRepo = require('../repo/subscribers');
 const partnersRepo = require('../repo/partners');
+const levelsRepo = require('../repo/levels');
 const tokens = require('../tokens');
 const email = require('../email');
 const V = require('../validate');
 const { config } = require('../config');
 const { createOrRetrieveCustomer } = require('../stripe');
-
-const LEVELS = { founding: 'Founding Member', member: 'Member', associate: 'Associate' };
 
 function renderPage(res, view, locals) {
   const viewsDir = path.join(__dirname, '..', 'views');
@@ -64,39 +63,42 @@ module.exports = function adminRoutes(getDb) {
     const db = await getDb();
     const status = req.query.status || '';
     const rows = await appsRepo.list(db, status ? { status } : {});
-    renderPage(res, 'admin/applications', { title: 'Applications', nav: true, csrfToken: res.locals.csrfToken, rows, status, LEVELS });
+    const levels = await levelsRepo.listActive(db);
+    renderPage(res, 'admin/applications', { title: 'Applications', nav: true, csrfToken: res.locals.csrfToken, rows, status, levels });
   });
 
   router.get('/applications/:id', async (req, res) => {
     const db = await getDb();
     const a = await appsRepo.getById(db, Number(req.params.id));
     if (!a) return res.status(404).send('Not found');
+    const levels = await levelsRepo.listActive(db);
     let stripeMsg = null;
     if (req.query.stripe === 'synced') {
       stripeMsg = { type: 'success', text: 'Application accepted. Member created. Stripe Customer synced.' };
     } else if (req.query.stripe === 'failed') {
       stripeMsg = { type: 'warning', text: `Member created. Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'} — retry from member detail.` };
     }
-    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, csrfToken: res.locals.csrfToken, a, LEVELS, stripeMsg });
+    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, csrfToken: res.locals.csrfToken, a, levels, stripeMsg });
   });
 
   router.post('/applications/:id/accept', async (req, res) => {
     const db = await getDb();
     const id = Number(req.params.id);
-    const level = String(req.body.level || '');
-    if (!LEVELS[level]) return res.status(400).send('Invalid level');
+    const levelId = Number(req.body.levelId);
+    const level = await levelsRepo.getById(db, levelId);
+    if (!level || !level.active) return res.status(400).send('Invalid level');
     const a = await appsRepo.getById(db, id);
     if (!a) return res.status(404).send('Not found');
-    await appsRepo.setStatus(db, id, 'accepted', level, new Date());
+    await appsRepo.setStatus(db, id, 'accepted', levelId, new Date());
     const existing = await membersRepo.getByEmail(db, a.email);
     const token = tokens.newToken();
     const expires = tokens.expiryFromNow(7);
     let member;
     if (existing) {
-      await membersRepo.setLevel(db, existing.id, level);
+      await membersRepo.setLevelId(db, existing.id, levelId);
       member = await membersRepo.setSetToken(db, existing.id, token, expires);
     } else {
-      member = await membersRepo.createFromApplication(db, a, level, token, expires);
+      member = await membersRepo.createFromApplication(db, a, levelId, token, expires);
     }
 
     // Create Stripe Customer (non-blocking for membership)
@@ -141,27 +143,29 @@ module.exports = function adminRoutes(getDb) {
     const db = await getDb();
     const q = req.query.q || '';
     const rows = await membersRepo.list(db, q ? { q } : {});
-    renderPage(res, 'admin/members', { title: 'Members', nav: true, csrfToken: res.locals.csrfToken, rows, q, LEVELS });
+    renderPage(res, 'admin/members', { title: 'Members', nav: true, csrfToken: res.locals.csrfToken, rows, q });
   });
 
   router.get('/members/:id', async (req, res) => {
     const db = await getDb();
     const m = await membersRepo.getById(db, Number(req.params.id));
     if (!m) return res.status(404).send('Not found');
+    const levels = await levelsRepo.listActive(db);
     let stripeMsg = null;
     if (req.query.stripe === 'synced') {
       stripeMsg = { type: 'success', text: 'Stripe Customer synced.' };
     } else if (req.query.stripe === 'failed') {
       stripeMsg = { type: 'warning', text: `Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'}. Retry from below.` };
     }
-    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, LEVELS, stripeMsg });
+    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, levels, stripeMsg });
   });
 
   router.post('/members/:id/level', async (req, res) => {
     const db = await getDb();
-    const level = String(req.body.level || '');
-    if (!LEVELS[level]) return res.status(400).send('Invalid level');
-    await membersRepo.setLevel(db, Number(req.params.id), level);
+    const levelId = Number(req.body.levelId);
+    const level = await levelsRepo.getById(db, levelId);
+    if (!level || !level.active) return res.status(400).send('Invalid level');
+    await membersRepo.setLevelId(db, Number(req.params.id), levelId);
     res.redirect(`/admin/members/${req.params.id}`);
   });
 
@@ -207,6 +211,76 @@ module.exports = function adminRoutes(getDb) {
     } else {
       res.redirect(`/admin/members/${m.id}?stripe=failed&stripeError=${encodeURIComponent(stripeResult.error)}`);
     }
+  });
+
+  // Levels CRUD
+  router.get('/levels', async (req, res) => {
+    const db = await getDb();
+    const rows = await levelsRepo.list(db);
+    renderPage(res, 'admin/levels', { title: 'Membership Levels', nav: true, csrfToken: res.locals.csrfToken, rows });
+  });
+
+  router.get('/levels/new', async (req, res) => {
+    renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: null, error: null });
+  });
+
+  router.post('/levels', async (req, res) => {
+    const db = await getDb();
+    const name = V.cleanStr(req.body.name, 100);
+    if (!name) {
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: null, error: 'Name is required.' });
+    }
+    const slug = levelsRepo.slugify(name);
+    const existingBySlug = await levelsRepo.getBySlug(db, slug);
+    if (existingBySlug) {
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: { name }, error: 'A level with a similar name already exists.' });
+    }
+    const active = req.body.active === 'on';
+    await levelsRepo.create(db, { name, slug, active });
+    res.redirect('/admin/levels');
+  });
+
+  router.get('/levels/:id/edit', async (req, res) => {
+    const db = await getDb();
+    const level = await levelsRepo.getById(db, Number(req.params.id));
+    if (!level) return res.status(404).send('Not found');
+    renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: null });
+  });
+
+  router.post('/levels/:id', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const level = await levelsRepo.getById(db, id);
+    if (!level) return res.status(404).send('Not found');
+    const name = V.cleanStr(req.body.name, 100);
+    if (!name) {
+      return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: 'Name is required.' });
+    }
+    const active = req.body.active === 'on';
+    if (!active && level.active) {
+      const activeCount = await levelsRepo.countActive(db);
+      if (activeCount <= 1) {
+        return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: 'Keep at least one active membership level.' });
+      }
+    }
+    await levelsRepo.update(db, id, { name, active });
+    res.redirect('/admin/levels');
+  });
+
+  router.post('/levels/:id/toggle', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const level = await levelsRepo.getById(db, id);
+    if (!level) return res.status(404).send('Not found');
+    const newActive = !level.active;
+    if (!newActive) {
+      const activeCount = await levelsRepo.countActive(db);
+      if (activeCount <= 1) {
+        return res.status(400).send('Keep at least one active membership level.');
+      }
+    }
+    await levelsRepo.update(db, id, { active: newActive });
+    res.redirect('/admin/levels');
   });
 
   router.get('/newsletter', async (req, res) => {
