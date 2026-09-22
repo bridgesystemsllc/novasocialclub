@@ -346,5 +346,26 @@ module.exports = function adminRoutes(getDb) {
     renderPage(res, 'admin/partners', { title: 'Partners', nav: true, csrfToken: res.locals.csrfToken, rows });
   });
 
+  router.get('/billing', async (req, res) => {
+    const db = await getDb();
+    const q = req.query.q || '';
+    const status = req.query.status || 'all';
+    const levelId = req.query.levelId || 'all';
+    const rows = await subscriptionsRepo.listWithMembers(db, { q, status, levelId });
+    const counts = await subscriptionsRepo.countsByStatus(db);
+    const levels = await levelsRepo.listActive(db);
+    renderPage(res, 'admin/billing', {
+      title: 'Billing',
+      nav: true,
+      csrfToken: res.locals.csrfToken,
+      rows,
+      counts,
+      levels,
+      q,
+      status,
+      levelId
+    });
+  });
+
   return router;
 };
