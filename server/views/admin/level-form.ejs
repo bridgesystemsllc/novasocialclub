@@ -1,0 +1,21 @@
+<p><a href="/admin/levels">← All levels</a></p>
+<h1><%= level ? 'Edit Level' : 'Add Level' %></h1>
+<% if (error) { %>
+<div class="alert alert-warning"><%= error %></div>
+<% } %>
+<div class="card">
+  <form method="post" action="<%= level ? '/admin/levels/' + level.id : '/admin/levels' %>">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Name
+      <input type="text" name="name" value="<%= level ? level.name : '' %>" required maxlength="100">
+    </label>
+    <label style="display:flex;gap:6px;align-items:center;margin:12px 0">
+      <input type="checkbox" name="active" style="width:auto" <%= (!level || level.active) ? 'checked' : '' %>>
+      Active
+    </label>
+    <div class="actions">
+      <a href="/admin/levels">Cancel</a>
+      <button type="submit" class="btn-primary">Save</button>
+    </div>
+  </form>
+</div>

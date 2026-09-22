@@ -3,6 +3,7 @@ const { freshDb } = require('./helpers');
 const { createApp } = require('../server/index.js');
 const membersRepo = require('../server/repo/members');
 const appsRepo = require('../server/repo/applications');
+const levelsRepo = require('../server/repo/levels');
 const { newToken, expiryFromNow } = require('../server/tokens');
 
 async function getCsrf(base, pathname, cookieIn) {
@@ -14,9 +15,10 @@ async function getCsrf(base, pathname, cookieIn) {
 
 test('member sets password then logs in and sees membership', async () => {
   const db = await freshDb();
+  const memberLevel = await levelsRepo.getBySlug(db, 'member');
   const a = await appsRepo.create(db, { first_name: 'Mia', last_name: 'K', email: 'mia@x.com', phone: '', company: '', profession: '', linkedin: '', area: '', why: '' });
   const token = newToken();
-  await membersRepo.createFromApplication(db, a, 'founding', token, expiryFromNow(7));
+  await membersRepo.createFromApplication(db, a, memberLevel.id, token, expiryFromNow(7));
   const app = createApp({ db });
   const server = app.listen(0);
   const base = `http://localhost:${server.address().port}`;
@@ -28,6 +30,6 @@ test('member sets password then logs in and sees membership', async () => {
   expect(res.status).toBe(302);
   const home = await fetch(`${base}/member`, { headers: { cookie } });
   const html = await home.text();
-  expect(html).toContain('Founding Member');
+  expect(html).toContain('Member');
   server.close(); await db.close();
 });

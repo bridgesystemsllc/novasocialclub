@@ -16,7 +16,7 @@
   <h3>Accept</h3>
   <form method="post" action="/admin/applications/<%= a.id %>/accept" class="actions">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <select name="level"><% Object.keys(LEVELS).forEach(function(k){ %><option value="<%= k %>"><%= LEVELS[k] %></option><% }); %></select>
+    <select name="levelId"><% levels.forEach(function(l){ %><option value="<%= l.id %>"><%= l.name %></option><% }); %></select>
     <button class="btn-primary">Accept &amp; create login</button>
   </form>
   <h3>Reject</h3>

@@ -6,7 +6,7 @@
 <table class="data"><thead><tr><th>Name</th><th>Email</th><th>Level</th><th>Status</th><th>Login set?</th></tr></thead><tbody>
 <% rows.forEach(function(m){ %>
 <tr><td><a href="/admin/members/<%= m.id %>"><%= m.first_name %> <%= m.last_name %></a></td>
-<td><%= m.email %></td><td><%= LEVELS[m.membership_level] %></td><td><%= m.status %></td>
+<td><%= m.email %></td><td><%= m.level_name || '—' %></td><td><%= m.status %></td>
 <td><%= m.password_hash ? 'yes' : 'pending' %></td></tr>
 <% }); %>
 </tbody></table>

@@ -4,6 +4,7 @@ const { createApp } = require('../server/index.js');
 const auth = require('../server/auth');
 const admins = require('../server/repo/admins');
 const appsRepo = require('../server/repo/applications');
+const levelsRepo = require('../server/repo/levels');
 const email = require('../server/email');
 
 async function loginAgent(base) {
@@ -22,6 +23,7 @@ test('accepting an application creates a member and logs welcome email', async (
   const db = await freshDb();
   await admins.upsert(db, 'a@n.com', await auth.hashPassword('pw12345'));
   email.__setSender(async () => ({ id: 'x' }));
+  const memberLevel = await levelsRepo.getBySlug(db, 'member');
   const appRow = await appsRepo.create(db, { first_name: 'Ada', last_name: 'L', email: 'ada@x.com', phone: '', company: '', profession: '', linkedin: '', area: '', why: '' });
   const app = createApp({ db });
   const server = app.listen(0);
@@ -30,7 +32,7 @@ test('accepting an application creates a member and logs welcome email', async (
   const res = await fetch(`${base}/admin/applications/${appRow.id}/accept`, {
     method: 'POST', redirect: 'manual',
     headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-    body: new URLSearchParams({ level: 'member', _csrf: csrf }),
+    body: new URLSearchParams({ levelId: memberLevel.id, _csrf: csrf }),
   });
   expect(res.status).toBe(302);
   const { rows } = await db.query('SELECT * FROM members WHERE email=$1', ['ada@x.com']);
