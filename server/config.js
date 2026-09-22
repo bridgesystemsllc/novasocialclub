@@ -20,6 +20,7 @@ const config = {
   useMemoryDb: bool(process.env.USE_MEMORY_DB) || databaseUrl === '',
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
   stripePriceId: process.env.STRIPE_PRICE_ID || '',
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
 };
 
 module.exports = { config };

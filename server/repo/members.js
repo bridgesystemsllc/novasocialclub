@@ -52,4 +52,9 @@ async function setLevelId(db, id, levelId) { const { rows } = await db.query('UP
 async function setSetToken(db, id, token, expires) { const { rows } = await db.query('UPDATE members SET set_password_token=$2, token_expires_at=$3 WHERE id=$1 RETURNING *', [id, token, expires]); return rows[0]; }
 async function setStripeCustomerId(db, id, stripeCustomerId) { const { rows } = await db.query('UPDATE members SET stripe_customer_id=$2 WHERE id=$1 RETURNING *', [id, stripeCustomerId]); return rows[0]; }
 
-module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, setPassword, setStatus, setLevelId, setSetToken, setStripeCustomerId };
+async function getByStripeCustomerId(db, stripeCustomerId) {
+  const { rows } = await db.query('SELECT * FROM members WHERE stripe_customer_id=$1', [stripeCustomerId]);
+  return rows[0] || null;
+}
+
+module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, setPassword, setStatus, setLevelId, setSetToken, setStripeCustomerId, getByStripeCustomerId };

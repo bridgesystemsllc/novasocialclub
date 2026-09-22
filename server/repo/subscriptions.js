@@ -8,6 +8,14 @@ async function getByMemberId(db, memberId) {
   return rows[0] || null;
 }
 
+async function getByStripeSubscriptionId(db, stripeSubscriptionId) {
+  const { rows } = await db.query(
+    'SELECT * FROM subscriptions WHERE stripe_subscription_id = $1',
+    [stripeSubscriptionId]
+  );
+  return rows[0] || null;
+}
+
 async function upsertIncomplete(db, memberId, stripePriceId) {
   const { rows } = await db.query(`
     INSERT INTO subscriptions (member_id, stripe_price_id, status)
@@ -47,10 +55,28 @@ function hasActiveSubscription(subscription) {
   return subscription.status === 'active' || subscription.status === 'trialing';
 }
 
+async function createFromWebhook(db, memberId, stripeSubscriptionId, stripePriceId, status, currentPeriodEnd, cancelAtPeriodEnd) {
+  const { rows } = await db.query(`
+    INSERT INTO subscriptions (member_id, stripe_subscription_id, stripe_price_id, status, current_period_end, cancel_at_period_end)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (member_id) DO UPDATE SET
+      stripe_subscription_id = EXCLUDED.stripe_subscription_id,
+      stripe_price_id = EXCLUDED.stripe_price_id,
+      status = EXCLUDED.status,
+      current_period_end = EXCLUDED.current_period_end,
+      cancel_at_period_end = EXCLUDED.cancel_at_period_end,
+      updated_at = now()
+    RETURNING *
+  `, [memberId, stripeSubscriptionId, stripePriceId, status, currentPeriodEnd, cancelAtPeriodEnd]);
+  return rows[0];
+}
+
 module.exports = {
   getByMemberId,
+  getByStripeSubscriptionId,
   upsertIncomplete,
   updateStatus,
   updateFromStripeSubscription,
+  createFromWebhook,
   hasActiveSubscription,
 };
