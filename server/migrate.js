@@ -90,6 +90,11 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+  event_id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 async function migrate(db) {
@@ -181,6 +186,21 @@ async function migrate(db) {
         cancel_at_period_end BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+  } catch (err) {
+    if (!err.message.includes('already exists')) {
+      throw err;
+    }
+  }
+
+  // Add stripe_webhook_events table for existing databases
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+        event_id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
   } catch (err) {

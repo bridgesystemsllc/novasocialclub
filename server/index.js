@@ -9,13 +9,17 @@ function createApp(opts = {}) {
   const rootDir = path.join(__dirname, '..');
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
+
+  const getDb = opts.db ? async () => opts.db : require('./db').getDb;
+
+  // Stripe webhook route MUST be mounted before express.json() for raw body signature verification
+  app.use(require('./routes/stripeWebhooks')(getDb));
+
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
   const dbForSession = opts.db || null;
   app.use(require('./auth').sessionMiddleware(dbForSession));
-
-  const getDb = opts.db ? async () => opts.db : require('./db').getDb;
 
   app.use('/', require('./routes/public')(getDb));
   app.get('/portal.css', (req, res) => res.type('css').sendFile(path.join(__dirname, 'public-admin.css')));

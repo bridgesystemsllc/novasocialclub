@@ -69,8 +69,21 @@ function broadcastEmail(subject, bodyHtml, unsubUrl) {
   return { subject, html: wrap(`${bodyHtml}<hr><p style="font-size:12px;color:#666"><a href="${esc(unsubUrl)}">Unsubscribe</a></p>`) };
 }
 
+function paymentFailedEmail(member) {
+  return { subject: 'NOVA Social Club — payment issue', html: wrap(
+    `<h2>Payment issue</h2><p>Hi ${esc(member.first_name)}, we were unable to process your latest payment for your NOVA Social Club membership.</p>
+     <p>Please update your payment method in your member portal to maintain your membership benefits.</p>`) };
+}
+
+function subscriptionCanceledEmail(member) {
+  return { subject: 'NOVA Social Club — subscription canceled', html: wrap(
+    `<h2>Subscription canceled</h2><p>Hi ${esc(member.first_name)}, your NOVA Social Club membership has been canceled.</p>
+     <p>We're sorry to see you go. If you'd like to rejoin, you can start a new subscription from your member portal.</p>`) };
+}
+
 module.exports = {
   sendEmail, __setSender,
   applicationReceivedEmail, adminNotifyEmail, welcomeSetPasswordEmail,
   rejectionEmail, newsletterConfirmEmail, broadcastEmail,
+  paymentFailedEmail, subscriptionCanceledEmail,
 };
