@@ -1,0 +1,42 @@
+<h1>Email Log</h1>
+<p style="color:#666;font-size:14px">Recent outbound emails</p>
+<% if (rows.length === 0) { %>
+<div class="empty-state">
+  <h3>No emails sent yet</h3>
+  <p>Outbound email records will appear here.</p>
+</div>
+<% } else { %>
+<table class="data">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>To</th>
+      <th>Subject</th>
+      <th>Type</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% rows.forEach(function(r){ %>
+    <tr>
+      <td><%= new Date(r.sent_at).toLocaleString() %></td>
+      <td><%= r.to_email %></td>
+      <td><%= r.subject.length > 40 ? r.subject.slice(0, 40) + '…' : r.subject %></td>
+      <td><span class="badge badge-muted"><%= r.type %></span></td>
+      <td>
+        <% if (r.status === 'sent') { %>
+        <span class="badge badge-success">sent</span>
+        <% } else if (r.status === 'failed') { %>
+        <span class="badge badge-danger" title="<%= r.error || '' %>">failed</span>
+        <% } else { %>
+        <span class="badge"><%= r.status %></span>
+        <% } %>
+      </td>
+    </tr>
+    <% }); %>
+  </tbody>
+</table>
+<% if (rows.length >= 100) { %>
+<p style="margin-top:12px;color:#666;font-size:13px">Showing 100 newest emails.</p>
+<% } %>
+<% } %>

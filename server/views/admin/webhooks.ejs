@@ -1,0 +1,44 @@
+<h1>Webhooks</h1>
+<p style="color:#666;font-size:14px">Read-only log of Stripe webhook events</p>
+<div class="config-strip">
+  <div class="config-item">
+    <span>Webhook secret:</span>
+    <% if (webhookSecretConfigured) { %>
+    <span class="badge badge-success">configured <span class="check">✓</span></span>
+    <% } else { %>
+    <span class="badge badge-warning">not configured</span>
+    <% } %>
+  </div>
+  <div class="config-item">
+    <span>Showing:</span>
+    <span><%= rows.length %> newest event<%= rows.length === 1 ? '' : 's' %></span>
+  </div>
+</div>
+<% if (rows.length === 0) { %>
+<div class="empty-state">
+  <h3>No webhook events recorded yet</h3>
+  <p>Webhook events from Stripe will appear here once they are received.</p>
+</div>
+<% } else { %>
+<table class="data">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Type</th>
+      <th>Event ID</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% rows.forEach(function(r){ %>
+    <tr>
+      <td><%= new Date(r.processed_at).toLocaleString() %></td>
+      <td><%= r.type %></td>
+      <td class="mono" title="<%= r.event_id %>"><%= r.event_id.length > 24 ? r.event_id.slice(0, 24) + '…' : r.event_id %></td>
+    </tr>
+    <% }); %>
+  </tbody>
+</table>
+<% if (rows.length >= 100) { %>
+<p style="margin-top:12px;color:#666;font-size:13px">Showing 100 newest events.</p>
+<% } %>
+<% } %>

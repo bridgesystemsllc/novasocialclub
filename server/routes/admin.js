@@ -10,6 +10,8 @@ const membersRepo = require('../repo/members');
 const subsRepo = require('../repo/subscribers');
 const partnersRepo = require('../repo/partners');
 const levelsRepo = require('../repo/levels');
+const webhookEventsRepo = require('../repo/webhook_events');
+const emailLogRepo = require('../repo/emailLog');
 const tokens = require('../tokens');
 const email = require('../email');
 const V = require('../validate');
@@ -373,6 +375,55 @@ module.exports = function adminRoutes(getDb) {
       q,
       status,
       levelId
+    });
+  });
+
+  router.get('/webhooks', async (req, res) => {
+    const db = await getDb();
+    const rows = await webhookEventsRepo.listRecent(db, 100);
+    const webhookSecretConfigured = Boolean(config.stripeWebhookSecret);
+    renderPage(res, 'admin/webhooks', {
+      title: 'Webhooks',
+      nav: true,
+      csrfToken: res.locals.csrfToken,
+      rows,
+      webhookSecretConfigured
+    });
+  });
+
+  router.get('/settings', (req, res) => {
+    const stripeKeysConfigured = Boolean(config.stripeSecretKey);
+    const stripeMode = config.stripeSecretKey.startsWith('sk_live') ? 'Live' : 'Test';
+    const stripePriceConfigured = Boolean(config.stripePriceId);
+    const webhookSecretConfigured = Boolean(config.stripeWebhookSecret);
+    const resendConfigured = Boolean(config.resendApiKey);
+    const resendFrom = config.resendFrom || '';
+    const appBaseUrl = config.appBaseUrl || '';
+    const isProd = config.isProd;
+
+    renderPage(res, 'admin/settings', {
+      title: 'Settings',
+      nav: true,
+      csrfToken: res.locals.csrfToken,
+      stripeKeysConfigured,
+      stripeMode,
+      stripePriceConfigured,
+      webhookSecretConfigured,
+      resendConfigured,
+      resendFrom,
+      appBaseUrl,
+      isProd
+    });
+  });
+
+  router.get('/email-log', async (req, res) => {
+    const db = await getDb();
+    const rows = await emailLogRepo.list(db, { limit: 100 });
+    renderPage(res, 'admin/email-log', {
+      title: 'Email Log',
+      nav: true,
+      csrfToken: res.locals.csrfToken,
+      rows
     });
   });
 

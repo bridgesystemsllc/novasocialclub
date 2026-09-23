@@ -4,7 +4,13 @@
   <%= stripeMsg.text %>
 </div>
 <% } %>
-<h1><%= a.first_name %> <%= a.last_name %> <span class="badge"><%= a.status %></span></h1>
+<%
+  var statusClass = '';
+  if (a.status === 'pending') statusClass = 'badge-warning';
+  else if (a.status === 'accepted') statusClass = 'badge-success';
+  else if (a.status === 'rejected') statusClass = 'badge-danger';
+%>
+<h1><%= a.first_name %> <%= a.last_name %> <span class="badge <%= statusClass %>"><%= a.status %></span></h1>
 <div class="card">
   <p><b>Email:</b> <%= a.email %> &nbsp; <b>Phone:</b> <%= a.phone || '—' %></p>
   <p><b>Company:</b> <%= a.company || '—' %> &nbsp; <b>Profession:</b> <%= a.profession || '—' %></p>
@@ -20,7 +26,7 @@
     <button class="btn-primary">Accept &amp; create login</button>
   </form>
   <h3>Reject</h3>
-  <form method="post" action="/admin/applications/<%= a.id %>/reject" class="actions">
+  <form method="post" action="/admin/applications/<%= a.id %>/reject" class="actions" onsubmit="return confirm('Reject this application?');">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="notify" style="width:auto"> Email applicant</label>
     <button>Reject</button>
