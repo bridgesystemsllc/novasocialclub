@@ -5,20 +5,40 @@
 <link rel="stylesheet" href="/portal.css">
 </head><body>
 <% if (typeof nav !== 'undefined' && nav) { %>
-<nav class="portal-nav">
-  <a class="brand" href="/admin">NOVA Admin</a>
-  <a href="/admin">Dashboard</a>
-  <a href="/admin/applications">Applications</a>
-  <a href="/admin/members">Members</a>
-  <a href="/admin/levels">Levels</a>
-  <a href="/admin/billing">Billing</a>
-  <a href="/admin/webhooks">Webhooks</a>
-  <a href="/admin/email-log">Email log</a>
-  <a href="/admin/newsletter">Newsletter</a>
-  <a href="/admin/partners">Partners</a>
-  <a href="/admin/settings">Settings</a>
-  <form method="post" action="/admin/logout" class="logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button>Log out</button></form>
-</nav>
-<% } %>
+<% var currentPath = typeof path !== 'undefined' ? path : ''; %>
+<button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">☰</button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+<div class="portal-shell">
+  <aside class="portal-sidebar">
+    <a class="brand" href="/admin">NOVA Admin</a>
+    <nav>
+      <a href="/admin" class="<%= currentPath === 'dashboard' ? 'active' : '' %>">Dashboard</a>
+      <a href="/admin/applications" class="<%= currentPath === 'applications' ? 'active' : '' %>">Applications</a>
+      <a href="/admin/members" class="<%= currentPath === 'members' ? 'active' : '' %>">Members</a>
+      <a href="/admin/levels" class="<%= currentPath === 'levels' ? 'active' : '' %>">Levels</a>
+      <a href="/admin/billing" class="<%= currentPath === 'billing' ? 'active' : '' %>">Billing</a>
+      <a href="/admin/webhooks" class="<%= currentPath === 'webhooks' ? 'active' : '' %>">Webhooks</a>
+      <a href="/admin/email-log" class="<%= currentPath === 'email-log' ? 'active' : '' %>">Email log</a>
+      <a href="/admin/newsletter" class="<%= currentPath === 'newsletter' ? 'active' : '' %>">Newsletter</a>
+      <a href="/admin/partners" class="<%= currentPath === 'partners' ? 'active' : '' %>">Partners</a>
+      <a href="/admin/settings" class="<%= currentPath === 'settings' ? 'active' : '' %>">Settings</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <form method="post" action="/admin/logout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="logout-btn">Log out</button>
+      </form>
+    </div>
+  </aside>
+  <main class="portal-main"><%- body %></main>
+</div>
+<script>
+function toggleSidebar(){
+  document.querySelector('.portal-sidebar').classList.toggle('open');
+  document.querySelector('.sidebar-overlay').classList.toggle('open');
+}
+</script>
+<% } else { %>
 <main class="portal-main"><%- body %></main>
+<% } %>
 </body></html>
