@@ -9,21 +9,49 @@ async function createFromApplication(db, app, levelId, token, expires) {
   return rows[0];
 }
 
-async function list(db, { q } = {}) {
+async function list(db, { q, status, level_id } = {}) {
   const baseQuery = `
     SELECT m.*, l.name as level_name, l.slug as level_slug
     FROM members m
     LEFT JOIN membership_levels l ON l.id = m.membership_level_id
   `;
-  if (q) {
-    const like = `%${q.toLowerCase()}%`;
-    const { rows } = await db.query(
-      `${baseQuery}
-       WHERE lower(m.first_name) LIKE $1 OR lower(m.last_name) LIKE $1 OR lower(m.email) LIKE $1
-       ORDER BY m.created_at DESC`, [like]);
-    return rows;
+  
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+
+  if (q && typeof q === 'string') {
+    const trimmed = q.slice(0, 200).trim();
+    if (trimmed) {
+      const like = `%${trimmed.toLowerCase()}%`;
+      conditions.push(`(lower(m.first_name) LIKE $${idx} OR lower(m.last_name) LIKE $${idx} OR lower(m.email) LIKE $${idx})`);
+      params.push(like);
+      idx++;
+    }
   }
-  const { rows } = await db.query(`${baseQuery} ORDER BY m.created_at DESC`);
+
+  if (status === 'active' || status === 'inactive') {
+    conditions.push(`m.status = $${idx}`);
+    params.push(status);
+    idx++;
+  }
+
+  if (level_id !== undefined && level_id !== '' && level_id !== null) {
+    const levelIdNum = parseInt(level_id, 10);
+    if (!isNaN(levelIdNum) && levelIdNum > 0) {
+      conditions.push(`m.membership_level_id = $${idx}`);
+      params.push(levelIdNum);
+      idx++;
+    }
+  }
+
+  let query = baseQuery;
+  if (conditions.length > 0) {
+    query += ` WHERE ${conditions.join(' AND ')}`;
+  }
+  query += ` ORDER BY m.created_at DESC`;
+
+  const { rows } = await db.query(query, params);
   return rows;
 }
 

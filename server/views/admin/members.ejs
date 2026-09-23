@@ -1,8 +1,23 @@
 <h1>Members</h1>
-<form method="get" action="/admin/members" class="actions">
-  <input name="q" value="<%= q %>" placeholder="Search name or email">
-  <button class="btn-primary">Search</button>
+<form method="get" action="/admin/members" class="actions" style="margin-bottom:18px">
+  <input name="q" value="<%= q %>" placeholder="Search name or email" style="max-width:220px">
+  <select name="status" style="max-width:140px">
+    <option value="" <%= status === '' ? 'selected' : '' %>>All statuses</option>
+    <option value="active" <%= status === 'active' ? 'selected' : '' %>>Active</option>
+    <option value="inactive" <%= status === 'inactive' ? 'selected' : '' %>>Inactive</option>
+  </select>
+  <select name="level_id" style="max-width:160px">
+    <option value="" <%= levelId === '' ? 'selected' : '' %>>All levels</option>
+    <% levels.forEach(function(l){ %>
+    <option value="<%= l.id %>" <%= String(levelId) === String(l.id) ? 'selected' : '' %>><%= l.name %></option>
+    <% }); %>
+  </select>
+  <button class="btn-primary">Apply</button>
+  <a href="/admin/members" style="padding:11px 18px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:8px;background:#fff">Clear</a>
 </form>
+<% if (rows.length === 0) { %>
+<p>No members match these filters.</p>
+<% } else { %>
 <table class="data"><thead><tr><th>Name</th><th>Email</th><th>Level</th><th>Status</th><th>Login set?</th></tr></thead><tbody>
 <% rows.forEach(function(m){ %>
 <tr><td><a href="/admin/members/<%= m.id %>"><%= m.first_name %> <%= m.last_name %></a></td>
@@ -10,3 +25,4 @@
 <td><%= m.password_hash ? 'yes' : 'pending' %></td></tr>
 <% }); %>
 </tbody></table>
+<% } %>
