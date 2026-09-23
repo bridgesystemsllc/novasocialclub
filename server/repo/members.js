@@ -11,7 +11,9 @@ async function createFromApplication(db, app, levelId, token, expires) {
 
 async function list(db, { q, status, level_id } = {}) {
   const baseQuery = `
-    SELECT m.*, l.name as level_name, l.slug as level_slug
+    SELECT m.*, l.name as level_name, l.slug as level_slug,
+           l.stripe_price_id as level_stripe_price_id, l.description as level_description,
+           l.price_cents as level_price_cents, l.billing_interval as level_billing_interval
     FROM members m
     LEFT JOIN membership_levels l ON l.id = m.membership_level_id
   `;
@@ -57,7 +59,9 @@ async function list(db, { q, status, level_id } = {}) {
 
 async function getById(db, id) {
   const { rows } = await db.query(`
-    SELECT m.*, l.name as level_name, l.slug as level_slug
+    SELECT m.*, l.name as level_name, l.slug as level_slug,
+           l.stripe_price_id as level_stripe_price_id, l.description as level_description,
+           l.price_cents as level_price_cents, l.billing_interval as level_billing_interval
     FROM members m
     LEFT JOIN membership_levels l ON l.id = m.membership_level_id
     WHERE m.id = $1

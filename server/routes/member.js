@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const auth = require('../auth');
 const membersRepo = require('../repo/members');
 const subscriptionsRepo = require('../repo/subscriptions');
-const { createCheckoutSession } = require('../stripe');
+const { createCheckoutSession, resolveCheckoutPriceId, formatLevelPrice } = require('../stripe');
 const { config } = require('../config');
 const { sendEmail, passwordResetEmail } = require('../email');
 const V = require('../validate');
@@ -128,12 +128,26 @@ module.exports = function memberRoutes(getDb) {
     if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
     const subscription = await subscriptionsRepo.getByMemberId(db, m.id);
     const hasActiveSub = subscriptionsRepo.hasActiveSubscription(subscription);
-    const stripePriceId = config.stripePriceId;
+    const resolvedPriceId = resolveCheckoutPriceId(m.level_stripe_price_id, config.stripePriceId);
+    const formattedPrice = formatLevelPrice(m.level_price_cents, m.level_billing_interval) || '$100 / month';
     let billingError = null;
     if (req.query.billing === 'error') {
       billingError = req.query.billingError || 'Billing error';
     }
-    render(res, 'member/home', { title: 'My Membership', nav: false, csrfToken: res.locals.csrfToken, m, levelLabel: m.level_name || 'Member', perks: PERKS, subscription, hasActiveSub, stripePriceId, billingError });
+    render(res, 'member/home', {
+      title: 'My Membership',
+      nav: false,
+      csrfToken: res.locals.csrfToken,
+      m,
+      levelLabel: m.level_name || 'Member',
+      levelDescription: m.level_description || null,
+      formattedPrice,
+      perks: PERKS,
+      subscription,
+      hasActiveSub,
+      hasPriceConfigured: !!resolvedPriceId,
+      billingError
+    });
   });
 
   router.get('/profile', auth.requireMember, async (req, res) => {
@@ -188,8 +202,9 @@ module.exports = function memberRoutes(getDb) {
     const m = await membersRepo.getById(db, req.session.memberId);
     if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
 
-    if (!config.stripePriceId) {
-      return res.redirect('/member?billing=error&billingError=' + encodeURIComponent('STRIPE_PRICE_ID not configured'));
+    const resolvedPriceId = resolveCheckoutPriceId(m.level_stripe_price_id, config.stripePriceId);
+    if (!resolvedPriceId) {
+      return res.redirect('/member?billing=error&billingError=' + encodeURIComponent('No Stripe Price configured for this membership level (set level Stripe Price ID or STRIPE_PRICE_ID)'));
     }
     if (!m.stripe_customer_id) {
       return res.redirect('/member?billing=error&billingError=' + encodeURIComponent('Stripe Customer not synced. Contact support.'));
@@ -203,7 +218,7 @@ module.exports = function memberRoutes(getDb) {
       return res.redirect('/member?billing=error&billingError=' + encodeURIComponent(result.error));
     }
 
-    await subscriptionsRepo.upsertIncomplete(db, m.id, config.stripePriceId);
+    await subscriptionsRepo.upsertIncomplete(db, m.id, resolvedPriceId);
     res.redirect(result.url);
   });
 

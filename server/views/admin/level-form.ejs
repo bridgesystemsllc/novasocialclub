@@ -7,11 +7,35 @@
 <% if (error) { %>
 <div class="alert alert-warning"><%= error %></div>
 <% } %>
+<%
+  const priceValue = level ? (level.price !== undefined ? level.price : (level.price_cents != null ? (level.price_cents / 100).toFixed(2) : '')) : '';
+  const intervalValue = level ? (level.billing_interval || 'month') : 'month';
+  const descValue = level ? (level.description || '') : '';
+  const stripePriceValue = level ? (level.stripe_price_id || '') : '';
+%>
 <div class="card">
-  <form method="post" action="<%= level ? '/admin/levels/' + level.id : '/admin/levels' %>">
+  <form method="post" action="<%= level && level.id ? '/admin/levels/' + level.id : '/admin/levels' %>">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <label>Name
       <input type="text" name="name" value="<%= level ? level.name : '' %>" required maxlength="100">
+    </label>
+    <div style="display:flex;gap:12px;align-items:flex-end;margin:12px 0">
+      <label style="flex:1">Subscription price (USD)
+        <input type="text" name="price" value="<%= priceValue %>" placeholder="100.00" maxlength="12">
+      </label>
+      <label style="flex:1">Interval
+        <select name="billing_interval">
+          <option value="month" <%= intervalValue === 'month' ? 'selected' : '' %>>Month</option>
+          <option value="year" <%= intervalValue === 'year' ? 'selected' : '' %>>Year</option>
+        </select>
+      </label>
+    </div>
+    <label>Membership details
+      <textarea name="description" rows="4" maxlength="4000" placeholder="Benefits, features, or other details about this membership level"><%= descValue %></textarea>
+    </label>
+    <label style="margin-top:12px">Stripe Price ID (optional)
+      <input type="text" name="stripe_price_id" value="<%= stripePriceValue %>" placeholder="price_..." maxlength="100">
+      <small style="display:block;color:#666;margin-top:4px">Paste a Stripe Price id (price_…). Do not create Prices from this form.</small>
     </label>
     <label style="display:flex;gap:6px;align-items:center;margin:12px 0">
       <input type="checkbox" name="active" style="width:auto" <%= (!level || level.active) ? 'checked' : '' %>>

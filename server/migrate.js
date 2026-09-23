@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS membership_levels (
   active BOOLEAN NOT NULL DEFAULT true,
   sort_order INT NOT NULL DEFAULT 0,
   stripe_price_id TEXT,
+  description TEXT,
+  price_cents INTEGER,
+  billing_interval TEXT NOT NULL DEFAULT 'month',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -140,12 +143,38 @@ async function migrate(db) {
         active BOOLEAN NOT NULL DEFAULT true,
         sort_order INT NOT NULL DEFAULT 0,
         stripe_price_id TEXT,
+        description TEXT,
+        price_cents INTEGER,
+        billing_interval TEXT NOT NULL DEFAULT 'month',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
   } catch (err) {
     if (!err.message.includes('already exists')) {
+      throw err;
+    }
+  }
+
+  // Add new membership_levels columns for existing databases
+  try {
+    await db.query(`ALTER TABLE membership_levels ADD COLUMN IF NOT EXISTS description TEXT`);
+  } catch (err) {
+    if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
+      throw err;
+    }
+  }
+  try {
+    await db.query(`ALTER TABLE membership_levels ADD COLUMN IF NOT EXISTS price_cents INTEGER`);
+  } catch (err) {
+    if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
+      throw err;
+    }
+  }
+  try {
+    await db.query(`ALTER TABLE membership_levels ADD COLUMN IF NOT EXISTS billing_interval TEXT NOT NULL DEFAULT 'month'`);
+  } catch (err) {
+    if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
       throw err;
     }
   }
@@ -167,17 +196,21 @@ async function migrate(db) {
   }
 
   // Seed the default Member level
-  const { rows: existing } = await db.query(`SELECT id FROM membership_levels WHERE slug = 'member'`);
+  const { rows: existing } = await db.query(`SELECT id, price_cents FROM membership_levels WHERE slug = 'member'`);
   let memberLevelId;
   if (existing.length === 0) {
     const { rows } = await db.query(`
-      INSERT INTO membership_levels (name, slug, active, sort_order)
-      VALUES ('Member', 'member', true, 0)
+      INSERT INTO membership_levels (name, slug, active, sort_order, price_cents, billing_interval)
+      VALUES ('Member', 'member', true, 0, 10000, 'month')
       RETURNING id
     `);
     memberLevelId = rows[0].id;
   } else {
     memberLevelId = existing[0].id;
+    // Seed display price default for existing Member level if price_cents is null
+    if (existing[0].price_cents === null) {
+      await db.query(`UPDATE membership_levels SET price_cents = 10000, billing_interval = 'month' WHERE slug = 'member' AND price_cents IS NULL`);
+    }
   }
 
   // Migrate legacy TEXT membership_level values to the seed Member level

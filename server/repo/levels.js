@@ -30,16 +30,16 @@ async function getBySlug(db, slug) {
   return rows[0] || null;
 }
 
-async function create(db, { name, slug, active = true, sortOrder = 0 }) {
+async function create(db, { name, slug, active = true, sortOrder = 0, description = null, priceCents = null, billingInterval = 'month', stripePriceId = null }) {
   const { rows } = await db.query(`
-    INSERT INTO membership_levels (name, slug, active, sort_order)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO membership_levels (name, slug, active, sort_order, description, price_cents, billing_interval, stripe_price_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *
-  `, [name, slug, active, sortOrder]);
+  `, [name, slug, active, sortOrder, description, priceCents, billingInterval, stripePriceId]);
   return rows[0];
 }
 
-async function update(db, id, { name, active, sortOrder }) {
+async function update(db, id, { name, active, sortOrder, description, priceCents, billingInterval, stripePriceId }) {
   const sets = [];
   const vals = [];
   let idx = 1;
@@ -55,6 +55,22 @@ async function update(db, id, { name, active, sortOrder }) {
   if (sortOrder !== undefined) {
     sets.push(`sort_order = $${idx++}`);
     vals.push(sortOrder);
+  }
+  if (description !== undefined) {
+    sets.push(`description = $${idx++}`);
+    vals.push(description);
+  }
+  if (priceCents !== undefined) {
+    sets.push(`price_cents = $${idx++}`);
+    vals.push(priceCents);
+  }
+  if (billingInterval !== undefined) {
+    sets.push(`billing_interval = $${idx++}`);
+    vals.push(billingInterval);
+  }
+  if (stripePriceId !== undefined) {
+    sets.push(`stripe_price_id = $${idx++}`);
+    vals.push(stripePriceId);
   }
   sets.push(`updated_at = now()`);
 

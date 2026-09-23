@@ -17,14 +17,32 @@ function getStripe() {
   return stripeInstance;
 }
 
+function resolveCheckoutPriceId(levelStripePriceId, envStripePriceId) {
+  const fromLevel = String(levelStripePriceId || '').trim();
+  if (fromLevel) return fromLevel;
+  const fromEnv = String(envStripePriceId || '').trim();
+  if (fromEnv) return fromEnv;
+  return null;
+}
+
+function formatLevelPrice(priceCents, billingInterval) {
+  if (priceCents == null || priceCents === '') return null;
+  const n = Number(priceCents);
+  if (!Number.isFinite(n) || n < 0) return null;
+  const dollars = (n / 100).toFixed(2).replace(/\.00$/, '');
+  const interval = billingInterval === 'year' ? 'year' : 'month';
+  return `$${dollars} / ${interval}`;
+}
+
 async function createCheckoutSession(member, successUrl, cancelUrl) {
   const stripe = getStripe();
   if (!stripe) {
     return { success: false, error: 'Stripe not configured' };
   }
 
-  if (!config.stripePriceId) {
-    return { success: false, error: 'STRIPE_PRICE_ID not configured' };
+  const priceId = resolveCheckoutPriceId(member.level_stripe_price_id, config.stripePriceId);
+  if (!priceId) {
+    return { success: false, error: 'No Stripe Price configured for this membership level (set level Stripe Price ID or STRIPE_PRICE_ID)' };
   }
 
   if (!member.stripe_customer_id) {
@@ -36,7 +54,7 @@ async function createCheckoutSession(member, successUrl, cancelUrl) {
       mode: 'subscription',
       customer: member.stripe_customer_id,
       line_items: [{
-        price: config.stripePriceId,
+        price: priceId,
         quantity: 1,
       }],
       success_url: successUrl,
@@ -45,7 +63,7 @@ async function createCheckoutSession(member, successUrl, cancelUrl) {
         memberId: String(member.id),
       },
     });
-    return { success: true, sessionId: session.id, url: session.url };
+    return { success: true, sessionId: session.id, url: session.url, priceId };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -87,4 +105,4 @@ async function createOrRetrieveCustomer(member, applicationId) {
   }
 }
 
-module.exports = { getStripe, createOrRetrieveCustomer, createCheckoutSession };
+module.exports = { getStripe, createOrRetrieveCustomer, createCheckoutSession, resolveCheckoutPriceId, formatLevelPrice };

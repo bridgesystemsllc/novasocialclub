@@ -1,6 +1,9 @@
 <div class="card">
   <h1>Welcome, <%= m.first_name %></h1>
   <p><b>Membership:</b> <%= levelLabel %> &nbsp; <span class="badge"><%= m.status %></span></p>
+  <% if (levelDescription) { %>
+    <p><b>Details:</b> <%= levelDescription %></p>
+  <% } %>
   <p><a href="/member/profile">Edit Profile</a></p>
   <% if (billingError) { %>
     <div class="alert alert-warning"><%= billingError %></div>
@@ -12,14 +15,14 @@
     <% } %>
   <% } else { %>
     <p><b>Billing:</b> Payment required</p>
-    <% if (!stripePriceId) { %>
+    <% if (!hasPriceConfigured) { %>
       <p class="alert alert-warning">Billing is not configured. Contact support.</p>
     <% } else if (!m.stripe_customer_id) { %>
       <p class="alert alert-warning">Billing setup incomplete. Contact support.</p>
     <% } else { %>
       <form method="post" action="/member/billing/checkout">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button class="btn-primary">Pay membership — $100/mo</button>
+        <button class="btn-primary">Pay membership — <%= formattedPrice %></button>
       </form>
     <% } %>
   <% } %>
