@@ -27,3 +27,6 @@ build/
 # bun
 bun.lock
 bun.lockb
+
+# Database backups (never commit dump files)
+backups/
