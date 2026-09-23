@@ -143,8 +143,17 @@ module.exports = function adminRoutes(getDb) {
   router.get('/members', async (req, res) => {
     const db = await getDb();
     const q = req.query.q || '';
-    const rows = await membersRepo.list(db, q ? { q } : {});
-    renderPage(res, 'admin/members', { title: 'Members', nav: true, csrfToken: res.locals.csrfToken, rows, q });
+    const status = req.query.status || '';
+    const levelId = req.query.level_id || '';
+
+    const filters = {};
+    if (q) filters.q = q;
+    if (status === 'active' || status === 'inactive') filters.status = status;
+    if (levelId) filters.level_id = levelId;
+
+    const rows = await membersRepo.list(db, filters);
+    const levels = await levelsRepo.list(db);
+    renderPage(res, 'admin/members', { title: 'Members', nav: true, csrfToken: res.locals.csrfToken, rows, q, status, levelId, levels });
   });
 
   router.get('/members/:id', async (req, res) => {
