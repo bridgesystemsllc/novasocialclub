@@ -2,11 +2,13 @@
 const express = require('express');
 const ejs = require('ejs');
 const path = require('path');
+const crypto = require('crypto');
 const auth = require('../auth');
 const membersRepo = require('../repo/members');
 const subscriptionsRepo = require('../repo/subscriptions');
 const { createCheckoutSession } = require('../stripe');
 const { config } = require('../config');
+const { sendEmail, passwordResetEmail } = require('../email');
 const V = require('../validate');
 
 const PERKS = [
@@ -51,18 +53,74 @@ module.exports = function memberRoutes(getDb) {
     res.redirect('/member');
   });
 
-  router.get('/login', (req, res) => render(res, 'member/login', { title: 'Member Login', nav: false, csrfToken: res.locals.csrfToken, error: null }));
+  router.get('/login', (req, res) => {
+    const success = req.query.reset === 'success' ? 'Password updated. Log in.' : null;
+    render(res, 'member/login', { title: 'Member Login', nav: false, csrfToken: res.locals.csrfToken, error: null, success });
+  });
 
   router.post('/login', async (req, res) => {
     const db = await getDb();
     const m = await membersRepo.getByEmail(db, String(req.body.email || '').toLowerCase().trim());
     const ok = m && m.status === 'active' && await auth.verifyPassword(String(req.body.password || ''), m.password_hash);
-    if (!ok) return render(res, 'member/login', { title: 'Member Login', nav: false, csrfToken: res.locals.csrfToken, error: 'Invalid email or password.' });
+    if (!ok) return render(res, 'member/login', { title: 'Member Login', nav: false, csrfToken: res.locals.csrfToken, error: 'Invalid email or password.', success: null });
     req.session.memberId = m.id;
     res.redirect('/member');
   });
 
   router.post('/logout', (req, res) => req.session.destroy(() => res.redirect('/member/login')));
+
+  router.get('/forgot-password', (req, res) => render(res, 'member/forgot-password', { title: 'Forgot Password', nav: false, csrfToken: res.locals.csrfToken, error: null, success: null }));
+
+  router.post('/forgot-password', async (req, res) => {
+    const db = await getDb();
+    const email = String(req.body.email || '').toLowerCase().trim();
+    
+    if (!email || !email.includes('@')) {
+      return render(res, 'member/forgot-password', { title: 'Forgot Password', nav: false, csrfToken: res.locals.csrfToken, error: 'Invalid email format.', success: null });
+    }
+
+    const m = await membersRepo.getByEmail(db, email);
+    if (m && m.status === 'active' && m.password_hash) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expires = new Date(Date.now() + 60 * 60 * 1000);
+      await membersRepo.setResetToken(db, m.id, token, expires);
+      const resetUrl = `${config.appBaseUrl}/member/reset-password?token=${token}`;
+      const emailContent = passwordResetEmail(m, resetUrl);
+      await sendEmail(db, { to: m.email, subject: emailContent.subject, html: emailContent.html, type: 'password_reset', memberId: m.id });
+    }
+
+    render(res, 'member/forgot-password', { title: 'Forgot Password', nav: false, csrfToken: res.locals.csrfToken, error: null, success: 'If an account exists, we sent a reset link.' });
+  });
+
+  router.get('/reset-password', async (req, res) => {
+    const db = await getDb();
+    const token = String(req.query.token || '');
+    const m = await membersRepo.getByResetToken(db, token);
+    const valid = m && m.reset_token_expires_at && new Date(m.reset_token_expires_at) > new Date();
+    render(res, 'member/reset-password', { title: 'Reset Password', nav: false, csrfToken: res.locals.csrfToken, token, valid, error: null });
+  });
+
+  router.post('/reset-password', async (req, res) => {
+    const db = await getDb();
+    const token = String(req.body.token || '');
+    const pw = String(req.body.password || '');
+    const confirm = String(req.body.confirm || '');
+    const m = await membersRepo.getByResetToken(db, token);
+    const valid = m && m.reset_token_expires_at && new Date(m.reset_token_expires_at) > new Date();
+
+    if (!valid) {
+      return render(res, 'member/reset-password', { title: 'Reset Password', nav: false, csrfToken: res.locals.csrfToken, token, valid: false, error: 'Link expired or invalid.' });
+    }
+    if (pw !== confirm) {
+      return render(res, 'member/reset-password', { title: 'Reset Password', nav: false, csrfToken: res.locals.csrfToken, token, valid: true, error: 'Passwords do not match.' });
+    }
+    if (pw.length < 8) {
+      return render(res, 'member/reset-password', { title: 'Reset Password', nav: false, csrfToken: res.locals.csrfToken, token, valid: true, error: 'Password must be at least 8 characters.' });
+    }
+
+    await membersRepo.updatePasswordAndClearResetToken(db, m.id, await auth.hashPassword(pw));
+    res.redirect('/member/login?reset=success');
+  });
 
   router.get('/', auth.requireMember, async (req, res) => {
     const db = await getDb();
