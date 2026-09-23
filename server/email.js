@@ -55,6 +55,27 @@ function welcomeSetPasswordEmail(member, url) {
      <p>This link expires in 7 days.</p>`) };
 }
 
+function onboardingInviteEmail(member, setPasswordUrl) {
+  return { subject: 'Welcome to The NOVA Social Club — complete your membership', html: wrap(
+    `<h2>Welcome, ${esc(member.first_name)}</h2>
+     <p>Your NOVA Social Club membership has been approved! Complete these steps to get started:</p>
+     <ol style="line-height:1.8">
+       <li><b>Set your password</b> — Create your login to access the member portal</li>
+       <li><b>Complete your profile</b> — Add your details at /member/profile</li>
+       <li><b>Pay your membership</b> — Activate your membership from your member home</li>
+     </ol>
+     <p style="margin-top:24px"><a href="${esc(setPasswordUrl)}" style="background:#111;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px">Set your password</a></p>
+     <p style="margin-top:16px;color:#666">This link expires in 7 days.</p>`) };
+}
+
+function paymentRequestEmail(member, checkoutUrl) {
+  return { subject: 'NOVA Social Club — complete your payment', html: wrap(
+    `<h2>Complete your membership payment</h2>
+     <p>Hi ${esc(member.first_name)}, please complete your NOVA Social Club membership payment using the link below:</p>
+     <p style="margin-top:24px"><a href="${esc(checkoutUrl)}" style="background:#111;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px">Pay membership — $100/mo</a></p>
+     <p style="margin-top:16px;color:#666">This payment link will expire. If it does, request a new one from your member home or contact us.</p>`) };
+}
+
 function passwordResetEmail(member, url) {
   return { subject: 'Reset your NOVA Social Club password', html: wrap(
     `<h2>Password reset</h2><p>Hi ${esc(member.first_name)}, we received a request to reset your password for The NOVA Social Club.</p>
@@ -91,6 +112,7 @@ function subscriptionCanceledEmail(member) {
 module.exports = {
   sendEmail, __setSender,
   applicationReceivedEmail, adminNotifyEmail, welcomeSetPasswordEmail,
+  onboardingInviteEmail, paymentRequestEmail,
   passwordResetEmail, rejectionEmail, newsletterConfirmEmail, broadcastEmail,
   paymentFailedEmail, subscriptionCanceledEmail,
 };

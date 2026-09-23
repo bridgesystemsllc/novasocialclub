@@ -50,7 +50,7 @@ module.exports = function memberRoutes(getDb) {
     }
     await membersRepo.setPassword(db, m.id, await auth.hashPassword(pw));
     req.session.memberId = m.id;
-    res.redirect('/member');
+    res.redirect('/member/profile?onboarding=1');
   });
 
   router.get('/login', (req, res) => {
@@ -134,6 +134,8 @@ module.exports = function memberRoutes(getDb) {
     if (req.query.billing === 'error') {
       billingError = req.query.billingError || 'Billing error';
     }
+    const profileComplete = !!(m.first_name && m.last_name);
+    const showOnboarding = req.query.onboarding === '1' || !profileComplete || !hasActiveSub;
     render(res, 'member/home', {
       title: 'My Membership',
       nav: false,
@@ -146,7 +148,9 @@ module.exports = function memberRoutes(getDb) {
       subscription,
       hasActiveSub,
       hasPriceConfigured: !!resolvedPriceId,
-      billingError
+      billingError,
+      profileComplete,
+      showOnboarding
     });
   });
 
@@ -154,6 +158,7 @@ module.exports = function memberRoutes(getDb) {
     const db = await getDb();
     const m = await membersRepo.getById(db, req.session.memberId);
     if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
+    const showOnboardingBanner = req.query.onboarding === '1';
     render(res, 'member/profile', {
       title: 'Profile',
       nav: false,
@@ -161,7 +166,8 @@ module.exports = function memberRoutes(getDb) {
       m,
       levelLabel: m.level_name || 'Member',
       error: null,
-      success: req.query.success === '1' ? 'Profile updated.' : null
+      success: req.query.success === '1' ? 'Profile updated.' : null,
+      showOnboardingBanner
     });
   });
 

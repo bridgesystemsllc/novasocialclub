@@ -48,7 +48,7 @@ const tokens = require('../tokens');
 const email = require('../email');
 const V = require('../validate');
 const { config } = require('../config');
-const { createOrRetrieveCustomer, createCheckoutSession, resolveCheckoutPriceId, formatLevelPrice } = require('../stripe');
+const { createOrRetrieveCustomer, createCheckoutSession, emailPaymentLinkToMember, resolveCheckoutPriceId, formatLevelPrice } = require('../stripe');
 const subscriptionsRepo = require('../repo/subscriptions');
 const broadcastsRepo = require('../repo/newsletterBroadcasts');
 
@@ -165,7 +165,38 @@ module.exports = function adminRoutes(getDb) {
     } else if (req.query.stripe === 'failed') {
       stripeMsg = { type: 'warning', text: `Member created. Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'} — retry from member detail.` };
     }
-    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, path: 'applications', csrfToken: res.locals.csrfToken, a, levels, stripeMsg });
+    if (req.query.email === 'sent') {
+      stripeMsg = { type: 'success', text: `Payment link emailed to ${req.query.emailTo || 'member'}` };
+    } else if (req.query.email === 'error') {
+      stripeMsg = { type: 'warning', text: req.query.emailError || 'Email error' };
+    } else if (req.query.onboarding === 'sent') {
+      stripeMsg = { type: 'success', text: 'Onboarding email sent' };
+    }
+
+    let member = null;
+    let subscription = null;
+    if (a.status === 'accepted') {
+      member = await membersRepo.getByApplicationId(db, a.id);
+      if (!member) {
+        member = await membersRepo.getByEmail(db, a.email);
+      }
+      if (member) {
+        subscription = await subscriptionsRepo.getByMemberId(db, member.id);
+      }
+    }
+
+    renderPage(res, 'admin/application-detail', {
+      title: 'Application',
+      nav: true,
+      path: 'applications',
+      csrfToken: res.locals.csrfToken,
+      a,
+      levels,
+      stripeMsg,
+      member,
+      subscription,
+      hasActiveSub: subscriptionsRepo.hasActiveSubscription(subscription)
+    });
   });
 
   router.post('/applications/:id/accept', async (req, res) => {
@@ -200,10 +231,10 @@ module.exports = function adminRoutes(getDb) {
       stripeMsg = `stripe=failed&stripeError=${encodeURIComponent(stripeResult.error)}`;
     }
 
-    // Welcome email must still send even if Stripe fails
+    // Onboarding email must still send even if Stripe fails
     const url = `${config.appBaseUrl}/member/set-password?token=${token}`;
-    const t = email.welcomeSetPasswordEmail(member, url);
-    await email.sendEmail(db, { to: member.email, subject: t.subject, html: t.html, type: 'welcome_set_password', memberId: member.id });
+    const t = email.onboardingInviteEmail(member, url);
+    await email.sendEmail(db, { to: member.email, subject: t.subject, html: t.html, type: 'onboarding', memberId: member.id });
     res.redirect(`/admin/applications/${id}?${stripeMsg}`);
   });
 
@@ -252,6 +283,78 @@ module.exports = function adminRoutes(getDb) {
     res.redirect(`/admin/applications/${id}`);
   });
 
+  router.post('/applications/:id/resend-onboarding', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const a = await appsRepo.getById(db, id);
+    if (!a) return res.status(404).send('Not found');
+    if (a.status !== 'accepted') {
+      return res.status(400).send('Application must be accepted first');
+    }
+    let member = await membersRepo.getByApplicationId(db, a.id);
+    if (!member) member = await membersRepo.getByEmail(db, a.email);
+    if (!member) {
+      return res.redirect(`/admin/applications/${id}?email=error&emailError=${encodeURIComponent('No member record found')}`);
+    }
+    const token = tokens.newToken();
+    await membersRepo.setSetToken(db, member.id, token, tokens.expiryFromNow(7));
+    const url = `${config.appBaseUrl}/member/set-password?token=${token}`;
+    const t = email.onboardingInviteEmail(member, url);
+    await email.sendEmail(db, { to: member.email, subject: t.subject, html: t.html, type: 'onboarding', memberId: member.id });
+    res.redirect(`/admin/applications/${id}?onboarding=sent`);
+  });
+
+  router.post('/applications/:id/email-payment-link', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const a = await appsRepo.getById(db, id);
+    if (!a) return res.status(404).send('Not found');
+    if (a.status !== 'accepted') {
+      return res.status(400).send('Application must be accepted first');
+    }
+    let member = await membersRepo.getByApplicationId(db, a.id);
+    if (!member) member = await membersRepo.getByEmail(db, a.email);
+    if (!member) {
+      return res.redirect(`/admin/applications/${id}?email=error&emailError=${encodeURIComponent('No member record found')}`);
+    }
+
+    const successUrl = `${config.appBaseUrl}/member/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${config.appBaseUrl}/member/billing/cancel`;
+
+    const result = await emailPaymentLinkToMember(db, member, { successUrl, cancelUrl });
+    if (!result.ok) {
+      const errorMsg = result.sessionCreated
+        ? `Checkout created but email failed: ${result.error}`
+        : result.error;
+      return res.redirect(`/admin/applications/${id}?email=error&emailError=${encodeURIComponent(errorMsg)}`);
+    }
+    res.redirect(`/admin/applications/${id}?email=sent&emailTo=${encodeURIComponent(member.email)}`);
+  });
+
+  router.post('/applications/:id/sync-stripe-customer', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const a = await appsRepo.getById(db, id);
+    if (!a) return res.status(404).send('Not found');
+    if (a.status !== 'accepted') {
+      return res.status(400).send('Application must be accepted first');
+    }
+    let member = await membersRepo.getByApplicationId(db, a.id);
+    if (!member) member = await membersRepo.getByEmail(db, a.email);
+    if (!member) {
+      return res.redirect(`/admin/applications/${id}?email=error&emailError=${encodeURIComponent('No member record found')}`);
+    }
+    const stripeResult = await createOrRetrieveCustomer(member, a.id);
+    if (stripeResult.success) {
+      if (!stripeResult.existing || !member.stripe_customer_id) {
+        await membersRepo.setStripeCustomerId(db, member.id, stripeResult.customerId);
+      }
+      res.redirect(`/admin/applications/${id}?stripe=synced`);
+    } else {
+      res.redirect(`/admin/applications/${id}?stripe=failed&stripeError=${encodeURIComponent(stripeResult.error)}`);
+    }
+  });
+
   router.get('/members', async (req, res) => {
     const db = await getDb();
     const q = req.query.q || '';
@@ -281,9 +384,12 @@ module.exports = function adminRoutes(getDb) {
       stripeMsg = { type: 'warning', text: `Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'}. Retry from below.` };
     } else if (req.query.billing === 'error') {
       stripeMsg = { type: 'warning', text: req.query.billingError || 'Billing error' };
+    } else if (req.query.billing === 'emailed') {
+      stripeMsg = { type: 'success', text: `Payment link emailed to ${req.query.emailTo || 'member'}` };
     }
     const stripePriceId = config.stripePriceId;
-    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, path: 'members', csrfToken: res.locals.csrfToken, m, levels, stripeMsg, subscription, stripePriceId });
+    const hasActiveSub = subscriptionsRepo.hasActiveSubscription(subscription);
+    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, path: 'members', csrfToken: res.locals.csrfToken, m, levels, stripeMsg, subscription, stripePriceId, hasActiveSub });
   });
 
   router.post('/members/:id/level', async (req, res) => {
@@ -309,9 +415,27 @@ module.exports = function adminRoutes(getDb) {
     const token = tokens.newToken();
     await membersRepo.setSetToken(db, m.id, token, tokens.expiryFromNow(7));
     const url = `${config.appBaseUrl}/member/set-password?token=${token}`;
-    const t = email.welcomeSetPasswordEmail(m, url);
-    await email.sendEmail(db, { to: m.email, subject: t.subject, html: t.html, type: 'welcome_set_password', memberId: m.id });
+    const t = email.onboardingInviteEmail(m, url);
+    await email.sendEmail(db, { to: m.email, subject: t.subject, html: t.html, type: 'onboarding', memberId: m.id });
     res.redirect(`/admin/members/${m.id}`);
+  });
+
+  router.post('/members/:id/email-payment-link', async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, Number(req.params.id));
+    if (!m) return res.status(404).send('Not found');
+
+    const successUrl = `${config.appBaseUrl}/member/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${config.appBaseUrl}/member/billing/cancel`;
+
+    const result = await emailPaymentLinkToMember(db, m, { successUrl, cancelUrl });
+    if (!result.ok) {
+      const errorMsg = result.sessionCreated
+        ? `Checkout created but email failed: ${result.error}`
+        : result.error;
+      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent(errorMsg)}`);
+    }
+    res.redirect(`/admin/members/${m.id}?billing=emailed&emailTo=${encodeURIComponent(m.email)}`);
   });
 
   router.post('/members/:id/email', async (req, res) => {

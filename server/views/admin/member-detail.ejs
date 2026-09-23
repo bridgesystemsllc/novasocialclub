@@ -25,22 +25,30 @@
 </div>
 <div class="card">
   <h3>Billing</h3>
-  <% if (subscription && (subscription.status === 'active' || subscription.status === 'trialing')) { %>
+  <% if (hasActiveSub) { %>
     <p><b>Subscription:</b> <span class="badge badge-success"><%= subscription.status %></span></p>
     <% if (subscription.current_period_end) { %>
       <p><b>Current period ends:</b> <%= new Date(subscription.current_period_end).toLocaleDateString() %></p>
     <% } %>
   <% } else { %>
-    <p><b>Subscription:</b> <span class="badge badge-muted">No active subscription</span></p>
+    <p><b>Subscription:</b> <span class="badge badge-muted"><%= subscription ? subscription.status : 'none' %></span></p>
     <% if (!stripePriceId) { %>
       <p class="alert alert-warning">STRIPE_PRICE_ID not configured</p>
     <% } else if (!m.stripe_customer_id) { %>
       <p class="alert alert-warning">Sync Stripe Customer first</p>
     <% } else { %>
-      <form method="post" action="/admin/members/<%= m.id %>/start-billing" class="actions">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button class="btn-primary">Start billing — $100/mo</button>
-      </form>
+      <div class="actions">
+        <form method="post" action="/admin/members/<%= m.id %>/email-payment-link" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn-primary">Email payment link</button>
+        </form>
+      </div>
+      <p style="margin-top:8px;font-size:13px">
+        <form method="post" action="/admin/members/<%= m.id %>/start-billing" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" style="background:none;border:none;color:#666;text-decoration:underline;cursor:pointer;padding:0;font-size:13px">Open Checkout (admin test)</button>
+        </form>
+      </p>
     <% } %>
   <% } %>
 </div>

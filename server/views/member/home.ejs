@@ -4,16 +4,51 @@
   <% if (levelDescription) { %>
     <p><b>Details:</b> <%= levelDescription %></p>
   <% } %>
-  <p><a href="/member/profile">Edit Profile</a></p>
   <% if (billingError) { %>
     <div class="alert alert-warning"><%= billingError %></div>
   <% } %>
+  <% if (showOnboarding) { %>
+  <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin:16px 0">
+    <h3 style="margin-top:0">Get started</h3>
+    <ul style="list-style:none;padding:0;margin:0">
+      <li style="padding:8px 0;display:flex;align-items:center;gap:8px">
+        <span style="color:#28a745">✓</span>
+        <span style="text-decoration:line-through;color:#666">Create login</span>
+      </li>
+      <li style="padding:8px 0;display:flex;align-items:center;gap:8px">
+        <% if (profileComplete) { %>
+          <span style="color:#28a745">✓</span>
+          <span style="text-decoration:line-through;color:#666">Complete profile</span>
+        <% } else { %>
+          <span style="color:#ccc">○</span>
+          <a href="/member/profile">Complete profile</a>
+        <% } %>
+      </li>
+      <li style="padding:8px 0;display:flex;align-items:center;gap:8px">
+        <% if (hasActiveSub) { %>
+          <span style="color:#28a745">✓</span>
+          <span style="text-decoration:line-through;color:#666">Pay membership</span>
+        <% } else { %>
+          <span style="color:#ccc">○</span>
+          <span>Pay membership — <%= formattedPrice %></span>
+          <% if (hasPriceConfigured && m.stripe_customer_id) { %>
+            <form method="post" action="/member/billing/checkout" style="display:inline;margin-left:8px">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="btn-primary" style="padding:6px 12px;font-size:14px">Pay now</button>
+            </form>
+          <% } %>
+        <% } %>
+      </li>
+    </ul>
+  </div>
+  <% } %>
+  <p><a href="/member/profile">Edit Profile</a></p>
   <% if (hasActiveSub) { %>
     <p><b>Billing:</b> Active subscription</p>
     <% if (subscription && subscription.current_period_end) { %>
       <p><b>Next billing date:</b> <%= new Date(subscription.current_period_end).toLocaleDateString() %></p>
     <% } %>
-  <% } else { %>
+  <% } else if (!showOnboarding) { %>
     <p><b>Billing:</b> Payment required</p>
     <% if (!hasPriceConfigured) { %>
       <p class="alert alert-warning">Billing is not configured. Contact support.</p>

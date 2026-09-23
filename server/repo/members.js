@@ -70,6 +70,16 @@ async function getById(db, id) {
 }
 
 async function getByEmail(db, email) { const { rows } = await db.query('SELECT * FROM members WHERE email=$1', [email]); return rows[0] || null; }
+
+async function getByApplicationId(db, applicationId) {
+  const { rows } = await db.query(`
+    SELECT m.*, l.name as level_name, l.slug as level_slug
+    FROM members m
+    LEFT JOIN membership_levels l ON l.id = m.membership_level_id
+    WHERE m.application_id = $1 LIMIT 1
+  `, [applicationId]);
+  return rows[0] || null;
+}
 async function getBySetToken(db, token) { const { rows } = await db.query('SELECT * FROM members WHERE set_password_token=$1', [token]); return rows[0] || null; }
 async function getByResetToken(db, token) { const { rows } = await db.query('SELECT * FROM members WHERE reset_password_token=$1', [token]); return rows[0] || null; }
 
@@ -117,4 +127,4 @@ async function updateProfile(db, id, profile) {
   return rows[0];
 }
 
-module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, getByResetToken, setPassword, setStatus, setLevelId, setSetToken, setResetToken, updatePasswordAndClearResetToken, setStripeCustomerId, getByStripeCustomerId, updateProfile };
+module.exports = { createFromApplication, list, getById, getByEmail, getByApplicationId, getBySetToken, getByResetToken, setPassword, setStatus, setLevelId, setSetToken, setResetToken, updatePasswordAndClearResetToken, setStripeCustomerId, getByStripeCustomerId, updateProfile };
