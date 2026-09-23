@@ -142,6 +142,32 @@ module.exports = function adminRoutes(getDb) {
     res.redirect(`/admin/applications/${req.params.id}`);
   });
 
+  router.post('/applications/:id/waitlist', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const a = await appsRepo.getById(db, id);
+    if (!a) return res.status(404).send('Not found');
+    const allowed = ['pending', 'waitlisted', 'follow_up'];
+    if (!allowed.includes(a.status)) {
+      return res.status(400).send('Cannot waitlist an accepted or rejected application.');
+    }
+    await appsRepo.setStatus(db, id, 'waitlisted', a.membership_level_id, null);
+    res.redirect(`/admin/applications/${id}`);
+  });
+
+  router.post('/applications/:id/follow-up', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const a = await appsRepo.getById(db, id);
+    if (!a) return res.status(404).send('Not found');
+    const allowed = ['pending', 'waitlisted', 'follow_up'];
+    if (!allowed.includes(a.status)) {
+      return res.status(400).send('Cannot follow up an accepted or rejected application.');
+    }
+    await appsRepo.setStatus(db, id, 'follow_up', a.membership_level_id, null);
+    res.redirect(`/admin/applications/${id}`);
+  });
+
   router.get('/members', async (req, res) => {
     const db = await getDb();
     const q = req.query.q || '';
