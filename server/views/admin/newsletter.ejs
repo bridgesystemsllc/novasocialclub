@@ -1,6 +1,12 @@
-<h1>Newsletter</h1>
-<p><a class="badge" href="/admin/newsletter/export.csv">Export CSV</a> &nbsp; <%= rows.filter(function(r){return r.status==='subscribed';}).length %> active subscribers</p>
-<div class="card"><h3>Send a broadcast</h3>
+<div class="page-header">
+  <h1>Newsletter</h1>
+  <div class="page-header-actions">
+    <a href="/admin/newsletter/export.csv" class="btn-secondary">Export CSV</a>
+    <span class="badge badge-info"><%= rows.filter(function(r){return r.status==='subscribed';}).length %> active</span>
+  </div>
+</div>
+
+<div class="card"><h3 class="mt-0">Send a broadcast</h3>
   <form method="post" action="/admin/newsletter/broadcast">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <label>Subject<input name="subject" required></label>

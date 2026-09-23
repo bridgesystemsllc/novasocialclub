@@ -1,88 +1,82 @@
-<h1>Settings</h1>
-<p style="color:#666;font-size:14px">Read-only configuration health check</p>
-
-<div class="card">
-  <h3>Stripe Configuration</h3>
-  <table class="data" style="margin-top:12px">
-    <tbody>
-      <tr>
-        <td style="width:200px">API Keys</td>
-        <td>
-          <% if (stripeKeysConfigured) { %>
-          <span class="badge badge-success"><%= stripeMode %> mode configured <span class="check">✓</span></span>
-          <% } else { %>
-          <span class="badge badge-danger">not configured</span>
-          <% } %>
-        </td>
-      </tr>
-      <tr>
-        <td>Price ID</td>
-        <td>
-          <% if (stripePriceConfigured) { %>
-          <span class="badge badge-success">set <span class="check">✓</span></span>
-          <% } else { %>
-          <span class="badge badge-warning">not set</span>
-          <% } %>
-        </td>
-      </tr>
-      <tr>
-        <td>Webhook Secret</td>
-        <td>
-          <% if (webhookSecretConfigured) { %>
-          <span class="badge badge-success">set <span class="check">✓</span></span>
-          <% } else { %>
-          <span class="badge badge-warning">not set</span>
-          <% } %>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+<div class="page-header">
+  <div>
+    <h1>Settings</h1>
+    <p class="subtitle">Read-only configuration health check</p>
+  </div>
 </div>
 
-<div class="card">
-  <h3>Email Configuration</h3>
-  <table class="data" style="margin-top:12px">
-    <tbody>
-      <tr>
-        <td style="width:200px">Resend API Key</td>
-        <td>
-          <% if (resendConfigured) { %>
-          <span class="badge badge-success">configured <span class="check">✓</span></span>
-          <% } else { %>
-          <span class="badge badge-warning">not configured</span>
-          <% } %>
-        </td>
-      </tr>
-      <tr>
-        <td>From Address</td>
-        <td>
-          <% if (resendFrom) { %>
-          <span><%= resendFrom %></span>
-          <% } else { %>
-          <span class="badge badge-muted">default</span>
-          <% } %>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+<div class="health-grid">
+  <div class="health-tile">
+    <h3><span class="tile-icon">💳</span> Stripe</h3>
+    <div class="health-row">
+      <span class="label">API Keys</span>
+      <span class="value">
+        <% if (stripeKeysConfigured) { %>
+        <span class="badge badge-success"><%= stripeMode %> ✓</span>
+        <% } else { %>
+        <span class="badge badge-danger">Not set</span>
+        <% } %>
+      </span>
+    </div>
+    <div class="health-row">
+      <span class="label">Price ID</span>
+      <span class="value">
+        <% if (stripePriceConfigured) { %>
+        <span class="badge badge-success">Set ✓</span>
+        <% } else { %>
+        <span class="badge badge-warning">Not set</span>
+        <% } %>
+      </span>
+    </div>
+    <div class="health-row">
+      <span class="label">Webhook Secret</span>
+      <span class="value">
+        <% if (webhookSecretConfigured) { %>
+        <span class="badge badge-success">Set ✓</span>
+        <% } else { %>
+        <span class="badge badge-warning">Not set</span>
+        <% } %>
+      </span>
+    </div>
+  </div>
+
+  <div class="health-tile">
+    <h3><span class="tile-icon">📧</span> Email</h3>
+    <div class="health-row">
+      <span class="label">Resend API</span>
+      <span class="value">
+        <% if (resendConfigured) { %>
+        <span class="badge badge-success">Configured ✓</span>
+        <% } else { %>
+        <span class="badge badge-warning">Not set</span>
+        <% } %>
+      </span>
+    </div>
+    <div class="health-row">
+      <span class="label">From Address</span>
+      <span class="value">
+        <% if (resendFrom) { %>
+        <span class="mono" style="font-size:12px"><%= resendFrom %></span>
+        <% } else { %>
+        <span class="badge badge-muted">Default</span>
+        <% } %>
+      </span>
+    </div>
+  </div>
+
+  <div class="health-tile">
+    <h3><span class="tile-icon">⚙️</span> Application</h3>
+    <div class="health-row">
+      <span class="label">Base URL</span>
+      <span class="value mono" style="font-size:12px"><%= appBaseUrl || '—' %></span>
+    </div>
+    <div class="health-row">
+      <span class="label">Environment</span>
+      <span class="value">
+        <span class="badge <%= isProd ? 'badge-warning' : 'badge-muted' %>"><%= isProd ? 'Production' : 'Development' %></span>
+      </span>
+    </div>
+  </div>
 </div>
 
-<div class="card">
-  <h3>Application</h3>
-  <table class="data" style="margin-top:12px">
-    <tbody>
-      <tr>
-        <td style="width:200px">Base URL</td>
-        <td><%= appBaseUrl %></td>
-      </tr>
-      <tr>
-        <td>Environment</td>
-        <td>
-          <span class="badge <%= isProd ? 'badge-warning' : 'badge-muted' %>"><%= isProd ? 'production' : 'development' %></span>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-<p style="margin-top:18px;color:#666;font-size:13px">No secret values are shown on this page. Configuration changes require environment variable updates.</p>
+<p class="text-muted" style="font-size:13px;margin-top:8px">No secret values are shown. Configuration changes require environment variable updates.</p>

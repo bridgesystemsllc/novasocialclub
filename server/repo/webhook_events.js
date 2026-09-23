@@ -26,4 +26,12 @@ async function listRecent(db, limit = 100) {
   return rows;
 }
 
-module.exports = { findById, record, listRecent };
+async function countSince(db, sinceDate) {
+  const { rows } = await db.query(
+    'SELECT COUNT(*)::int AS n FROM stripe_webhook_events WHERE processed_at >= $1',
+    [sinceDate]
+  );
+  return rows[0].n;
+}
+
+module.exports = { findById, record, listRecent, countSince };

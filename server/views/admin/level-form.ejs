@@ -1,5 +1,9 @@
-<p><a href="/admin/levels">← All levels</a></p>
-<h1><%= level ? 'Edit Level' : 'Add Level' %></h1>
+<div class="page-header">
+  <div>
+    <p class="text-muted mb-0" style="margin-bottom:4px"><a href="/admin/levels">← All levels</a></p>
+    <h1 class="mt-0"><%= level ? 'Edit Level' : 'Add Level' %></h1>
+  </div>
+</div>
 <% if (error) { %>
 <div class="alert alert-warning"><%= error %></div>
 <% } %>

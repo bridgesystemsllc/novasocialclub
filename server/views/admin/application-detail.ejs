@@ -1,9 +1,3 @@
-<p><a href="/admin/applications">← All applications</a></p>
-<% if (typeof stripeMsg !== 'undefined' && stripeMsg) { %>
-<div class="alert <%= stripeMsg.type === 'success' ? 'alert-success' : 'alert-warning' %>">
-  <%= stripeMsg.text %>
-</div>
-<% } %>
 <%
   var statusClass = '';
   var statusDisplay = a.status;
@@ -13,7 +7,18 @@
   else if (a.status === 'accepted') statusClass = 'badge-success';
   else if (a.status === 'rejected') statusClass = 'badge-danger';
 %>
-<h1><%= a.first_name %> <%= a.last_name %> <span class="badge <%= statusClass %>"><%= statusDisplay %></span></h1>
+<div class="page-header">
+  <div>
+    <p class="text-muted mb-0" style="margin-bottom:4px"><a href="/admin/applications">← All applications</a></p>
+    <h1 class="mt-0"><%= a.first_name %> <%= a.last_name %> <span class="badge <%= statusClass %>"><%= statusDisplay %></span></h1>
+  </div>
+</div>
+
+<% if (typeof stripeMsg !== 'undefined' && stripeMsg) { %>
+<div class="alert <%= stripeMsg.type === 'success' ? 'alert-success' : 'alert-warning' %>">
+  <%= stripeMsg.text %>
+</div>
+<% } %>
 <div class="card">
   <p><b>Email:</b> <%= a.email %> &nbsp; <b>Phone:</b> <%= a.phone || '—' %></p>
   <p><b>Company:</b> <%= a.company || '—' %> &nbsp; <b>Profession:</b> <%= a.profession || '—' %></p>
