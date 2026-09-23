@@ -51,6 +51,8 @@ const { config } = require('../config');
 const { createOrRetrieveCustomer, createCheckoutSession, emailPaymentLinkToMember, resolveCheckoutPriceId, formatLevelPrice } = require('../stripe');
 const subscriptionsRepo = require('../repo/subscriptions');
 const broadcastsRepo = require('../repo/newsletterBroadcasts');
+const { refreshEvents, getPoshSyncHealth } = require('../posh');
+const eventsRepo = require('../repo/events');
 
 function normalizePageLocals(view, locals) {
   const pageLocals = Object.assign({}, locals);
@@ -720,6 +722,143 @@ module.exports = function adminRoutes(getDb) {
     });
   });
 
+  // Events routes
+  router.get('/events', async (req, res) => {
+    const db = await getDb();
+    const events = await eventsRepo.listUpcomingAdmin(db, 50);
+    const health = getPoshSyncHealth();
+    const ok = req.query.ok || '';
+    const err = req.query.err || '';
+    renderPage(res, 'admin/events', {
+      title: 'Events',
+      nav: true,
+      path: 'events',
+      csrfToken: res.locals.csrfToken,
+      events,
+      lastSyncAt: health.lastSuccessfulSyncAt,
+      ok,
+      err
+    });
+  });
+
+  router.post('/events/refresh', async (req, res) => {
+    const db = await getDb();
+    try {
+      await refreshEvents(db, true);
+      res.redirect('/admin/events?ok=' + encodeURIComponent('Events refreshed from Posh'));
+    } catch (err) {
+      const msg = String(err.message || err).slice(0, 200);
+      res.redirect('/admin/events?err=' + encodeURIComponent('Posh sync failed: ' + msg));
+    }
+  });
+
+  router.get('/events/:id', async (req, res) => {
+    const db = await getDb();
+    const event = await eventsRepo.getById(db, req.params.id);
+    if (!event) return res.status(404).send('Event not found');
+
+    const levelId = req.query.level_id || '';
+    const levels = await levelsRepo.listActive(db);
+    const eligible = await membersRepo.listEligibleMembers(db, { levelId: levelId || null });
+    const sends = await eventsRepo.listSendsForEvent(db, event.id, 100);
+    const sendMap = new Map(sends.map(s => [s.member_id, s.sent_at]));
+
+    const membersWithSendStatus = eligible.map(m => ({
+      ...m,
+      sentAt: sendMap.get(m.id) || null
+    }));
+
+    const isPast = new Date(event.startsAt) < new Date();
+    const ok = req.query.ok || '';
+    const err = req.query.err || '';
+
+    renderPage(res, 'admin/event-detail', {
+      title: event.title,
+      nav: true,
+      path: 'events',
+      csrfToken: res.locals.csrfToken,
+      event,
+      members: membersWithSendStatus,
+      eligibleCount: eligible.length,
+      levels,
+      levelId,
+      isPast,
+      ok,
+      err
+    });
+  });
+
+  router.post('/events/:id/email-all', async (req, res) => {
+    const db = await getDb();
+    const event = await eventsRepo.getById(db, req.params.id);
+    if (!event) return res.status(404).send('Event not found');
+    if (new Date(event.startsAt) < new Date()) {
+      return res.redirect(`/admin/events/${req.params.id}?err=` + encodeURIComponent('Cannot email for past events'));
+    }
+
+    const levelId = req.body.level_id || null;
+    const force = req.body.force === 'on';
+    const eligible = await membersRepo.listEligibleMembers(db, { levelId });
+
+    if (eligible.length === 0) {
+      return res.redirect(`/admin/events/${req.params.id}?err=` + encodeURIComponent('No eligible members'));
+    }
+
+    let sent = 0, skipped = 0, failed = 0;
+    for (const member of eligible) {
+      const existingSend = await eventsRepo.getSend(db, event.id, member.id);
+      if (existingSend && !force) {
+        skipped++;
+        continue;
+      }
+      const t = email.eventTicketEmail(member, event);
+      const result = await email.sendEmail(db, { to: member.email, subject: t.subject, html: t.html, type: 'event_ticket', memberId: member.id });
+      if (result.ok) {
+        await eventsRepo.recordSend(db, event.id, member.id);
+        sent++;
+      } else {
+        failed++;
+      }
+    }
+
+    const msg = `Emailed ${sent} · skipped ${skipped} · failed ${failed}`;
+    res.redirect(`/admin/events/${req.params.id}?ok=` + encodeURIComponent(msg));
+  });
+
+  router.post('/events/:id/email/:memberId', async (req, res) => {
+    const db = await getDb();
+    const event = await eventsRepo.getById(db, req.params.id);
+    if (!event) return res.status(404).send('Event not found');
+    if (new Date(event.startsAt) < new Date()) {
+      return res.redirect(`/admin/events/${req.params.id}?err=` + encodeURIComponent('Cannot email for past events'));
+    }
+
+    const memberId = parseInt(req.params.memberId, 10);
+    const member = await membersRepo.getById(db, memberId);
+    if (!member) return res.status(404).send('Member not found');
+
+    const eligible = await membersRepo.listEligibleMembers(db, {});
+    const isEligible = eligible.some(m => m.id === memberId);
+    if (!isEligible) {
+      return res.redirect(`/admin/events/${req.params.id}?err=` + encodeURIComponent('Member not eligible'));
+    }
+
+    const force = req.body.force === 'on';
+    const existingSend = await eventsRepo.getSend(db, event.id, memberId);
+    if (existingSend && !force) {
+      return res.redirect(`/admin/events/${req.params.id}?ok=` + encodeURIComponent('Skipped (already sent). Use Force to resend.'));
+    }
+
+    const t = email.eventTicketEmail(member, event);
+    const result = await email.sendEmail(db, { to: member.email, subject: t.subject, html: t.html, type: 'event_ticket', memberId: member.id });
+    if (result.ok) {
+      await eventsRepo.recordSend(db, event.id, memberId);
+      res.redirect(`/admin/events/${req.params.id}?ok=` + encodeURIComponent(`Emailed ${member.first_name} ${member.last_name}`));
+    } else {
+      res.redirect(`/admin/events/${req.params.id}?err=` + encodeURIComponent('Failed to send email'));
+    }
+  });
+
   router.get('/webhooks', async (req, res) => {
     const db = await getDb();
     const rows = await webhookEventsRepo.listRecent(db, 100);
@@ -743,6 +882,8 @@ module.exports = function adminRoutes(getDb) {
     const resendFrom = config.resendFrom || '';
     const appBaseUrl = config.appBaseUrl || '';
     const isProd = config.isProd;
+    const poshHealth = getPoshSyncHealth();
+    const poshSyncConfigured = poshHealth.lastSuccessfulSyncAt > 0;
 
     renderPage(res, 'admin/settings', {
       title: 'Settings',
@@ -756,7 +897,8 @@ module.exports = function adminRoutes(getDb) {
       resendConfigured,
       resendFrom,
       appBaseUrl,
-      isProd
+      isProd,
+      poshSyncConfigured
     });
   });
 

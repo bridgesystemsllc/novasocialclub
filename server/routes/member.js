@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const auth = require('../auth');
 const membersRepo = require('../repo/members');
 const subscriptionsRepo = require('../repo/subscriptions');
+const eventsRepo = require('../repo/events');
 const { createCheckoutSession, resolveCheckoutPriceId, formatLevelPrice } = require('../stripe');
 const { config } = require('../config');
 const { sendEmail, passwordResetEmail } = require('../email');
@@ -234,6 +235,29 @@ module.exports = function memberRoutes(getDb) {
 
   router.get('/billing/cancel', auth.requireMember, (req, res) => {
     render(res, 'member/billing-cancel', { title: 'Payment Cancelled', nav: false, csrfToken: res.locals.csrfToken });
+  });
+
+  router.get('/events', auth.requireMember, async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, req.session.memberId);
+    if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
+
+    const subscription = await subscriptionsRepo.getByMemberId(db, m.id);
+    const isEligible = m.status === 'active' && subscriptionsRepo.hasActiveSubscription(subscription);
+
+    let events = [];
+    if (isEligible) {
+      events = await eventsRepo.listUpcomingAdmin(db, 20);
+    }
+
+    render(res, 'member/events', {
+      title: 'Upcoming Events',
+      nav: false,
+      csrfToken: res.locals.csrfToken,
+      m,
+      isEligible,
+      events
+    });
   });
 
   return router;

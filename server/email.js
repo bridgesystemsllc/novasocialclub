@@ -109,10 +109,28 @@ function subscriptionCanceledEmail(member) {
      <p>We're sorry to see you go. If you'd like to rejoin, you can start a new subscription from your member portal.</p>`) };
 }
 
+function eventTicketEmail(member, event) {
+  const startsAt = new Date(event.startsAt);
+  const dateOpts = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' };
+  const formattedDate = startsAt.toLocaleString('en-US', dateOpts) + ' ET';
+  const venueCity = [event.venueName, event.city].filter(Boolean).join(', ');
+  const venueLine = venueCity ? `<p><b>Venue:</b> ${esc(venueCity)}</p>` : '';
+  return {
+    subject: `NOVA — your ticket link: ${event.title}`,
+    html: wrap(
+      `<h2>${esc(event.title)}</h2>
+       <p>Hi ${esc(member.first_name)}, you're invited!</p>
+       <p><b>When:</b> ${esc(formattedDate)}</p>
+       ${venueLine}
+       <p style="margin:24px 0"><a href="${esc(event.eventUrl)}" style="background:#111;color:#fff;padding:14px 28px;text-decoration:none;border-radius:6px;display:inline-block">Get your ticket</a></p>
+       <p style="font-size:13px;color:#666">Or copy this link: ${esc(event.eventUrl)}</p>`)
+  };
+}
+
 module.exports = {
   sendEmail, __setSender,
   applicationReceivedEmail, adminNotifyEmail, welcomeSetPasswordEmail,
   onboardingInviteEmail, paymentRequestEmail,
   passwordResetEmail, rejectionEmail, newsletterConfirmEmail, broadcastEmail,
-  paymentFailedEmail, subscriptionCanceledEmail,
+  paymentFailedEmail, subscriptionCanceledEmail, eventTicketEmail,
 };

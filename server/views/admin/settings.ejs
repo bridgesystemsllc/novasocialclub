@@ -77,6 +77,20 @@
       </span>
     </div>
   </div>
+
+  <div class="health-tile">
+    <h3><span class="tile-icon">🎫</span> Posh / Apify</h3>
+    <div class="health-row">
+      <span class="label">Event Sync</span>
+      <span class="value">
+        <% if (poshSyncConfigured) { %>
+        <span class="badge badge-success">Configured ✓</span>
+        <% } else { %>
+        <span class="badge badge-muted">Never synced</span>
+        <% } %>
+      </span>
+    </div>
+  </div>
 </div>
 
 <p class="text-muted" style="font-size:13px;margin-top:8px">No secret values are shown. Configuration changes require environment variable updates.</p>

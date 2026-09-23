@@ -1,0 +1,91 @@
+<div class="page-header">
+  <div>
+    <p><a href="/admin/events">&larr; Events</a></p>
+    <h1><%= event.title %></h1>
+    <% 
+      var startsAt = new Date(event.startsAt);
+      var dateStr = startsAt.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+      var venueCity = [event.venueName, event.city].filter(Boolean).join(', ');
+    %>
+    <p class="subtitle"><%= dateStr %><% if (venueCity) { %> · <%= venueCity %><% } %></p>
+  </div>
+  <div class="page-header-actions">
+    <a href="<%= event.eventUrl %>" target="_blank" rel="noopener" class="btn-secondary">Open on Posh</a>
+  </div>
+</div>
+
+<% if (ok) { %>
+<div class="alert alert-success"><%= ok %></div>
+<% } %>
+<% if (err) { %>
+<div class="alert alert-warning"><%= err %></div>
+<% } %>
+
+<% if (isPast) { %>
+<div class="alert alert-info">This event has passed. Email actions are disabled.</div>
+<% } %>
+
+<div class="card" style="margin-bottom:24px">
+  <h3 class="mt-0">Send ticket links</h3>
+  <p><b>Eligible members:</b> <%= eligibleCount %></p>
+  
+  <form method="get" action="/admin/events/<%= event.id %>" class="filters-row" style="margin-bottom:16px">
+    <select name="level_id">
+      <option value="">All levels</option>
+      <% levels.forEach(function(l){ %>
+      <option value="<%= l.id %>" <%= String(levelId) === String(l.id) ? 'selected' : '' %>><%= l.name %></option>
+      <% }); %>
+    </select>
+    <button class="btn-secondary">Apply filter</button>
+  </form>
+  
+  <% if (!isPast) { %>
+  <form method="post" action="/admin/events/<%= event.id %>/email-all" style="margin-top:16px">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="level_id" value="<%= levelId %>">
+    <label style="display:block;margin-bottom:12px">
+      <input type="checkbox" name="force"> Force resend to already emailed members
+    </label>
+    <button class="btn-primary" onclick="this.disabled=true;this.form.submit();" <%= eligibleCount === 0 ? 'disabled' : '' %>>
+      Email ticket link to all eligible (<%= eligibleCount %>)
+    </button>
+  </form>
+  <% } %>
+</div>
+
+<% if (members.length === 0) { %>
+<div class="empty-state">
+  <h3>No eligible members</h3>
+  <p>Members must have status=active and an active or trialing subscription.</p>
+</div>
+<% } else { %>
+<table class="data"><thead><tr>
+  <th>Name</th>
+  <th>Email</th>
+  <th>Level</th>
+  <th>Sent?</th>
+  <th>Action</th>
+</tr></thead><tbody>
+<% members.forEach(function(m){ 
+  var sentStr = m.sentAt ? new Date(m.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+%>
+<tr>
+  <td><a href="/admin/members/<%= m.id %>"><%= m.first_name %> <%= m.last_name %></a></td>
+  <td><%= m.email %></td>
+  <td><%= m.level_name || '—' %></td>
+  <td><%= sentStr %></td>
+  <td>
+    <% if (!isPast) { %>
+    <form method="post" action="/admin/events/<%= event.id %>/email/<%= m.id %>" style="display:inline">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% if (m.sentAt) { %><input type="hidden" name="force" value="on"><% } %>
+      <button class="btn-link" onclick="this.disabled=true;this.form.submit();"><%= m.sentAt ? 'Resend' : 'Email' %></button>
+    </form>
+    <% } else { %>
+    —
+    <% } %>
+  </td>
+</tr>
+<% }); %>
+</tbody></table>
+<% } %>

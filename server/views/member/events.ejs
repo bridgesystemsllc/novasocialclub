@@ -1,0 +1,35 @@
+<div class="card">
+  <p><a href="/member">&larr; Back to membership</a></p>
+  <h1>Upcoming Events</h1>
+
+  <% if (!isEligible) { %>
+  <div class="alert alert-info">
+    Event tickets are available to active subscribed members.
+  </div>
+  <% } else if (events.length === 0) { %>
+  <p>No upcoming events at this time. Check back soon!</p>
+  <% } else { %>
+  <div class="events-list">
+    <% events.forEach(function(e){ 
+      var startsAt = new Date(e.startsAt);
+      var dateStr = startsAt.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+      var venueCity = [e.venueName, e.city].filter(Boolean).join(', ');
+    %>
+    <div class="event-card" style="border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
+      <h3 style="margin:0 0 8px 0"><%= e.title %></h3>
+      <p style="margin:0 0 4px 0;color:#666"><%= dateStr %></p>
+      <% if (venueCity) { %><p style="margin:0 0 12px 0;color:#666"><%= venueCity %></p><% } %>
+      <a href="<%= e.eventUrl %>" target="_blank" rel="noopener" 
+         style="display:inline-block;background:#111;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px">
+        Get ticket
+      </a>
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+
+  <form method="post" action="/member/logout" style="margin-top:24px">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button>Log out</button>
+  </form>
+</div>
