@@ -20,10 +20,22 @@
 </div>
 <% } %>
 <div class="card">
-  <p><b>Email:</b> <%= a.email %> &nbsp; <b>Phone:</b> <%= a.phone || '—' %></p>
-  <p><b>Company:</b> <%= a.company || '—' %> &nbsp; <b>Profession:</b> <%= a.profession || '—' %></p>
-  <p><b>LinkedIn:</b> <%= a.linkedin || '—' %> &nbsp; <b>Area:</b> <%= a.area || '—' %></p>
-  <p><b>Why join:</b><br><%= a.why || '—' %></p>
+  <h3>Application answers</h3>
+  <p><b>Email</b><br><%= a.email || '—' %></p>
+  <p><b>Cellphone Number</b><br><%= a.phone || '—' %></p>
+  <p><b>Company</b><br><%= a.company || '—' %></p>
+  <p><b>LinkedIn</b><br><%= a.linkedin || '—' %></p>
+  <p><b>What do you do?</b><br><%= a.profession || '—' %></p>
+  <p><b>Age</b><br><%= a.age || '—' %></p>
+  <p><b>Do you live in Virginia?</b><br><%= a.live_va || '—' %></p>
+  <p><b>Do you work in Virginia?</b><br><%= a.work_va || '—' %></p>
+  <p><b>Industry</b><br><%= a.industry || '—' %></p>
+  <p><b>Occupation</b><br><%= a.occupation || '—' %></p>
+  <p><b>Why do you want to join the NOVA Social Club?</b><br><%= a.why || '—' %></p>
+  <p><b>What are you looking to get out of membership?</b><br><%= a.goals || '—' %></p>
+<% if (a.area) { %>
+  <p><b>Area (legacy)</b><br><%= a.area %></p>
+<% } %>
 </div>
 <% if (['pending', 'waitlisted', 'follow_up'].includes(a.status)) { %>
 <div class="card">

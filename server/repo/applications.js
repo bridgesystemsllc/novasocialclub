@@ -3,9 +3,9 @@
 async function create(db, v) {
   const { rows } = await db.query(
     `INSERT INTO applications
-       (first_name,last_name,email,phone,company,profession,linkedin,area,why)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [v.first_name, v.last_name, v.email, v.phone, v.company, v.profession, v.linkedin, v.area, v.why]);
+       (first_name,last_name,email,phone,company,profession,linkedin,area,why,age,live_va,work_va,industry,occupation,goals)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+    [v.first_name, v.last_name, v.email, v.phone, v.company, v.profession, v.linkedin, v.area, v.why, v.age, v.live_va, v.work_va, v.industry, v.occupation, v.goals]);
   return rows[0];
 }
 
