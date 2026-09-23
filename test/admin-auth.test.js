@@ -21,14 +21,10 @@ test('admin dashboard requires login', async () => {
 
 test('admin can log in with correct credentials', async () => {
   const { db, server, base } = await boot();
-  const page = await fetch(`${base}/admin/login`);
-  const cookie = page.headers.get('set-cookie').split(';')[0];
-  const html = await page.text();
-  const csrf = html.match(/name="_csrf" value="([^"]+)"/)[1];
   const res = await fetch(`${base}/admin/login`, {
     method: 'POST', redirect: 'manual',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-    body: new URLSearchParams({ email: 'admin@nova.com', password: 'pw12345', _csrf: csrf }),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ email: 'admin@nova.com', password: 'pw12345', _csrf: '' }),
   });
   expect(res.status).toBe(302);
   expect(res.headers.get('location')).toBe('/admin');

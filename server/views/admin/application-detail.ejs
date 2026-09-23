@@ -6,18 +6,21 @@
 <% } %>
 <%
   var statusClass = '';
+  var statusDisplay = a.status;
   if (a.status === 'pending') statusClass = 'badge-warning';
+  else if (a.status === 'waitlisted') statusClass = 'badge-info';
+  else if (a.status === 'follow_up') { statusClass = 'badge-secondary'; statusDisplay = 'follow-up'; }
   else if (a.status === 'accepted') statusClass = 'badge-success';
   else if (a.status === 'rejected') statusClass = 'badge-danger';
 %>
-<h1><%= a.first_name %> <%= a.last_name %> <span class="badge <%= statusClass %>"><%= a.status %></span></h1>
+<h1><%= a.first_name %> <%= a.last_name %> <span class="badge <%= statusClass %>"><%= statusDisplay %></span></h1>
 <div class="card">
   <p><b>Email:</b> <%= a.email %> &nbsp; <b>Phone:</b> <%= a.phone || '—' %></p>
   <p><b>Company:</b> <%= a.company || '—' %> &nbsp; <b>Profession:</b> <%= a.profession || '—' %></p>
   <p><b>LinkedIn:</b> <%= a.linkedin || '—' %> &nbsp; <b>Area:</b> <%= a.area || '—' %></p>
   <p><b>Why join:</b><br><%= a.why || '—' %></p>
 </div>
-<% if (a.status === 'pending') { %>
+<% if (['pending', 'waitlisted', 'follow_up'].includes(a.status)) { %>
 <div class="card">
   <h3>Accept</h3>
   <form method="post" action="/admin/applications/<%= a.id %>/accept" class="actions">
@@ -31,6 +34,17 @@
     <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="notify" style="width:auto"> Email applicant</label>
     <button>Reject</button>
   </form>
+  <h3>Other actions</h3>
+  <div class="actions">
+    <form method="post" action="/admin/applications/<%= a.id %>/waitlist" style="display:inline">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="<%= a.status === 'waitlisted' ? 'btn-primary' : '' %>">Waitlist</button>
+    </form>
+    <form method="post" action="/admin/applications/<%= a.id %>/follow-up" style="display:inline">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="<%= a.status === 'follow_up' ? 'btn-primary' : '' %>">Follow-up</button>
+    </form>
+  </div>
 </div>
 <% } %>
 <div class="card">
