@@ -21,13 +21,27 @@ function validateApplication(body) {
     company: cleanStr(body.company, 120),
     profession: cleanStr(body.profession, 120),
     linkedin: cleanStr(body.linkedin, 200),
+    why: cleanStr(body.why_join ?? body.why, 2000),
+    age: cleanStr(body.age, 40),
+    live_va: cleanStr(body.live_va, 20),
+    work_va: cleanStr(body.work_va, 20),
+    industry: cleanStr(body.industry, 120),
+    occupation: cleanStr(body.occupation, 120),
+    goals: cleanStr(body.goals, 2000),
     area: cleanStr(body.area, 120),
-    why: cleanStr(body.why, 2000),
   };
   const errors = [];
   if (!value.first_name) errors.push('First name is required.');
   if (!value.last_name) errors.push('Last name is required.');
   if (!isEmail(value.email)) errors.push('A valid email is required.');
+  if (!value.age) errors.push('Age is required.');
+  if (!value.live_va) errors.push('Do you live in Virginia is required.');
+  if (!value.work_va) errors.push('Do you work in Virginia is required.');
+  if (value.live_va && !['Yes', 'No'].includes(value.live_va)) errors.push('Do you live in Virginia must be Yes or No.');
+  if (value.work_va && !['Yes', 'No'].includes(value.work_va)) errors.push('Do you work in Virginia must be Yes or No.');
+  if (!value.industry) errors.push('Industry is required.');
+  if (!value.occupation) errors.push('Occupation is required.');
+  if (!value.why) errors.push('Why do you want to join is required.');
   return { ok: errors.length === 0, spam: false, errors, value };
 }
 

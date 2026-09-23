@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS applications (
   linkedin TEXT,
   area TEXT,
   why TEXT,
+  age TEXT,
+  live_va TEXT,
+  work_va TEXT,
+  industry TEXT,
+  occupation TEXT,
+  goals TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   membership_level TEXT,
   membership_level_id INTEGER REFERENCES membership_levels(id),
@@ -224,6 +230,18 @@ async function migrate(db) {
   } catch (err) {
     if (!err.message.includes('already exists')) {
       throw err;
+    }
+  }
+
+  // Add marketing form columns to applications for existing databases
+  const appCols = ['age', 'live_va', 'work_va', 'industry', 'occupation', 'goals'];
+  for (const col of appCols) {
+    try {
+      await db.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS ${col} TEXT`);
+    } catch (err) {
+      if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
+        throw err;
+      }
     }
   }
 }

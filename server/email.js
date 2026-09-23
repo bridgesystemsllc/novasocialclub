@@ -42,10 +42,14 @@ function applicationReceivedEmail(app) {
 }
 
 function adminNotifyEmail(app) {
+  const areaLine = app.area ? `<br>Area (legacy): ${esc(app.area)}` : '';
   return { subject: `New application: ${app.first_name} ${app.last_name}`, html: wrap(
     `<h2>New application</h2><p><b>${esc(app.first_name)} ${esc(app.last_name)}</b> (${esc(app.email)})</p>
-     <p>Company: ${esc(app.company)}<br>Profession: ${esc(app.profession)}<br>Area: ${esc(app.area)}<br>LinkedIn: ${esc(app.linkedin)}</p>
-     <p>${esc(app.why)}</p>`) };
+     <p>Company: ${esc(app.company) || '—'}<br>Profession: ${esc(app.profession) || '—'}<br>LinkedIn: ${esc(app.linkedin) || '—'}</p>
+     <p>Age: ${esc(app.age) || '—'}<br>Live in Virginia: ${esc(app.live_va) || '—'}<br>Work in Virginia: ${esc(app.work_va) || '—'}</p>
+     <p>Industry: ${esc(app.industry) || '—'}<br>Occupation: ${esc(app.occupation) || '—'}${areaLine}</p>
+     <p><b>Why do you want to join the NOVA Social Club?</b><br>${esc(app.why) || '—'}</p>
+     <p><b>What are you looking to get out of membership?</b><br>${esc(app.goals) || '—'}</p>`) };
 }
 
 function welcomeSetPasswordEmail(member, url) {
