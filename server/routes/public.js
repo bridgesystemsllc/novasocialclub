@@ -7,9 +7,28 @@ const appsRepo = require('../repo/applications');
 const subsRepo = require('../repo/subscribers');
 const partnersRepo = require('../repo/partners');
 const email = require('../email');
+const { eventsRepo, refreshEvents } = require('../posh');
 
 module.exports = function publicRoutes(getDb) {
   const router = express.Router();
+
+  router.get('/api/events', async (req, res) => {
+    const db = await getDb();
+    let events = await eventsRepo.listUpcoming(db);
+
+    if (!events.length) {
+      try {
+        await refreshEvents(db, true);
+        events = await eventsRepo.listUpcoming(db);
+      } catch (err) {
+        console.error('[events] Initial POSH sync failed:', err.message);
+      }
+    } else {
+      refreshEvents(db).catch(err => console.error('[events] Background POSH sync failed:', err.message));
+    }
+
+    return res.json({ ok: true, events });
+  });
 
   router.post('/api/apply', async (req, res) => {
     const db = await getDb();
