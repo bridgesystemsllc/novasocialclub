@@ -418,12 +418,43 @@ module.exports = function adminRoutes(getDb) {
 
   router.get('/email-log', async (req, res) => {
     const db = await getDb();
-    const rows = await emailLogRepo.list(db, { limit: 100 });
+    const type = req.query.type || '';
+    const status = req.query.status || '';
+    const q = req.query.q || '';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 100;
+
+    const filters = {};
+    if (type) filters.type = type;
+    if (status) filters.status = status;
+    if (q) filters.q = q;
+    filters.page = page;
+    filters.limit = limit;
+
+    const [rows, total, types, statuses] = await Promise.all([
+      emailLogRepo.list(db, filters),
+      emailLogRepo.count(db, filters),
+      emailLogRepo.distinctTypes(db),
+      emailLogRepo.distinctStatuses(db)
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+    const hasFilters = !!(type || status || q);
+
     renderPage(res, 'admin/email-log', {
       title: 'Email Log',
       nav: true,
       csrfToken: res.locals.csrfToken,
-      rows
+      rows,
+      type,
+      status,
+      q,
+      page,
+      totalPages,
+      total,
+      types,
+      statuses,
+      hasFilters
     });
   });
 
