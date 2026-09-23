@@ -2,6 +2,8 @@
 <div class="actions" style="margin-bottom:18px">
   <a class="badge <%= !status ? 'badge-muted' : '' %>" href="/admin/applications">All</a>
   <a class="badge <%= status === 'pending' ? 'badge-warning' : '' %>" href="/admin/applications?status=pending">Pending</a>
+  <a class="badge <%= status === 'waitlisted' ? 'badge-info' : '' %>" href="/admin/applications?status=waitlisted">Waitlisted</a>
+  <a class="badge <%= status === 'follow_up' ? 'badge-secondary' : '' %>" href="/admin/applications?status=follow_up">Follow-up</a>
   <a class="badge <%= status === 'accepted' ? 'badge-success' : '' %>" href="/admin/applications?status=accepted">Accepted</a>
   <a class="badge <%= status === 'rejected' ? 'badge-danger' : '' %>" href="/admin/applications?status=rejected">Rejected</a>
 </div>
@@ -15,12 +17,14 @@
 <% rows.forEach(function(a){
   var statusClass = '';
   if (a.status === 'pending') statusClass = 'badge-warning';
+  else if (a.status === 'waitlisted') statusClass = 'badge-info';
+  else if (a.status === 'follow_up') statusClass = 'badge-secondary';
   else if (a.status === 'accepted') statusClass = 'badge-success';
   else if (a.status === 'rejected') statusClass = 'badge-danger';
 %>
 <tr><td><a href="/admin/applications/<%= a.id %>"><%= a.first_name %> <%= a.last_name %></a></td>
 <td><%= a.email %></td><td><%= a.company || '—' %></td>
-<td><span class="badge <%= statusClass %>"><%= a.status %></span></td>
+<td><span class="badge <%= statusClass %>"><%= a.status === 'follow_up' ? 'follow-up' : a.status %></span></td>
 <td><%= a.level_name || '—' %></td>
 <td><%= new Date(a.created_at).toLocaleDateString() %></td></tr>
 <% }); %>

@@ -17,10 +17,14 @@ test('broadcast emails every active subscriber with unsubscribe link', async () 
   const app = createApp({ db });
   const server = app.listen(0);
   const base = `http://localhost:${server.address().port}`;
-  const page = await fetch(`${base}/admin/login`);
-  const cookie = page.headers.get('set-cookie').split(';')[0];
-  const csrf = (await page.text()).match(/name="_csrf" value="([^"]+)"/)[1];
-  await fetch(`${base}/admin/login`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie }, body: new URLSearchParams({ email: 'a@n.com', password: 'pw12345', _csrf: csrf }) });
+  const loginRes = await fetch(`${base}/admin/login`, {
+    method: 'POST', redirect: 'manual',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ email: 'a@n.com', password: 'pw12345', _csrf: '' }),
+  });
+  const cookie = loginRes.headers.get('set-cookie').split(';')[0];
+  const dashRes = await fetch(`${base}/admin`, { headers: { cookie } });
+  const csrf = (await dashRes.text()).match(/name="_csrf" value="([^"]+)"/)[1];
   const res = await fetch(`${base}/admin/newsletter/broadcast`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie }, body: new URLSearchParams({ subject: 'News', body: '<p>hi</p>', _csrf: csrf }) });
   expect(res.status).toBe(302);
   expect(seen.length).toBe(2);
