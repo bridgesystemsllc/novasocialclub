@@ -52,4 +52,26 @@ function validatePartner(body) {
   return { ok: errors.length === 0, spam: false, errors, value };
 }
 
-module.exports = { isEmail, cleanStr, validateApplication, validateNewsletter, validatePartner };
+const PROFILE_EDITABLE = ['first_name', 'last_name', 'phone', 'company', 'linkedin'];
+const PROFILE_MAX_LENGTHS = { first_name: 100, last_name: 100, phone: 30, company: 200, linkedin: 500 };
+
+function validateProfile(body) {
+  const value = {};
+  for (const k of PROFILE_EDITABLE) {
+    value[k] = cleanStr(body[k], PROFILE_MAX_LENGTHS[k]);
+  }
+  const errors = [];
+  if (!value.first_name) errors.push('First name is required.');
+  if (!value.last_name) errors.push('Last name is required.');
+  return { ok: errors.length === 0, errors, value };
+}
+
+function pickProfile(body) {
+  const result = {};
+  for (const k of PROFILE_EDITABLE) {
+    result[k] = cleanStr(body[k], PROFILE_MAX_LENGTHS[k]);
+  }
+  return result;
+}
+
+module.exports = { isEmail, cleanStr, validateApplication, validateNewsletter, validatePartner, validateProfile, pickProfile, PROFILE_EDITABLE };

@@ -7,6 +7,7 @@ const membersRepo = require('../repo/members');
 const subscriptionsRepo = require('../repo/subscriptions');
 const { createCheckoutSession } = require('../stripe');
 const { config } = require('../config');
+const V = require('../validate');
 
 const PERKS = [
   'Complimentary access to member-only events',
@@ -75,6 +76,53 @@ module.exports = function memberRoutes(getDb) {
       billingError = req.query.billingError || 'Billing error';
     }
     render(res, 'member/home', { title: 'My Membership', nav: false, csrfToken: res.locals.csrfToken, m, levelLabel: m.level_name || 'Member', perks: PERKS, subscription, hasActiveSub, stripePriceId, billingError });
+  });
+
+  router.get('/profile', auth.requireMember, async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, req.session.memberId);
+    if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
+    render(res, 'member/profile', {
+      title: 'Profile',
+      nav: false,
+      csrfToken: res.locals.csrfToken,
+      m,
+      levelLabel: m.level_name || 'Member',
+      error: null,
+      success: req.query.success === '1' ? 'Profile updated.' : null
+    });
+  });
+
+  router.post('/profile', auth.requireMember, async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, req.session.memberId);
+    if (!m) { req.session.destroy(() => {}); return res.redirect('/member/login'); }
+    const { ok, errors, value } = V.validateProfile(req.body);
+    if (!ok) {
+      return render(res, 'member/profile', {
+        title: 'Profile',
+        nav: false,
+        csrfToken: res.locals.csrfToken,
+        m: { ...m, ...value },
+        levelLabel: m.level_name || 'Member',
+        error: errors.join(' '),
+        success: null
+      });
+    }
+    try {
+      await membersRepo.updateProfile(db, m.id, value);
+      res.redirect('/member/profile?success=1');
+    } catch (err) {
+      return render(res, 'member/profile', {
+        title: 'Profile',
+        nav: false,
+        csrfToken: res.locals.csrfToken,
+        m: { ...m, ...value },
+        levelLabel: m.level_name || 'Member',
+        error: 'Failed to update profile. Please try again.',
+        success: null
+      });
+    }
   });
 
   router.post('/billing/checkout', auth.requireMember, async (req, res) => {

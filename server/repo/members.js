@@ -85,4 +85,24 @@ async function getByStripeCustomerId(db, stripeCustomerId) {
   return rows[0] || null;
 }
 
-module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, setPassword, setStatus, setLevelId, setSetToken, setStripeCustomerId, getByStripeCustomerId };
+async function updateProfile(db, id, profile) {
+  const allowedKeys = ['first_name', 'last_name', 'phone', 'company', 'linkedin'];
+  const updates = [];
+  const values = [id];
+  let idx = 2;
+  for (const k of allowedKeys) {
+    if (profile.hasOwnProperty(k)) {
+      updates.push(`${k}=$${idx}`);
+      values.push(profile[k]);
+      idx++;
+    }
+  }
+  if (updates.length === 0) return getById(db, id);
+  const { rows } = await db.query(
+    `UPDATE members SET ${updates.join(',')} WHERE id=$1 RETURNING *`,
+    values
+  );
+  return rows[0];
+}
+
+module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, setPassword, setStatus, setLevelId, setSetToken, setStripeCustomerId, getByStripeCustomerId, updateProfile };
