@@ -1,6 +1,9 @@
 const { test, expect } = require('bun:test');
+const ejs = require('ejs');
+const path = require('path');
 const { freshDb } = require('./helpers');
 const { createApp } = require('../server/index.js');
+const adminRoutes = require('../server/routes/admin');
 
 async function boot() {
   const db = await freshDb();
@@ -29,4 +32,15 @@ test('admin can log in with correct credentials', async () => {
   expect(res.status).toBe(302);
   expect(res.headers.get('location')).toBe('/admin');
   server.close(); await db.close();
+});
+
+test('dashboard template renders safe portal content', async () => {
+  const locals = adminRoutes.normalizePageLocals('admin/dashboard', {});
+  const html = await ejs.renderFile(
+    path.join(__dirname, '..', 'server', 'views', 'admin', 'dashboard.ejs'),
+    locals
+  );
+  expect(html).toContain('<h1>Dashboard</h1>');
+  expect(html).toContain('Pending applications');
+  expect(html).not.toContain('ReferenceError');
 });

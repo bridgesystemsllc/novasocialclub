@@ -19,12 +19,37 @@ const { config } = require('../config');
 const { createOrRetrieveCustomer, createCheckoutSession } = require('../stripe');
 const subscriptionsRepo = require('../repo/subscriptions');
 
+function normalizePageLocals(view, locals) {
+  const pageLocals = Object.assign({}, locals);
+  if (view === 'admin/dashboard') {
+    pageLocals.kpis = Object.assign({
+      pendingApps: 0,
+      activeMembers: 0,
+      billingIssues: 0,
+      webhookEvents24h: 0,
+      emailFailures: 0,
+    }, pageLocals.kpis || {});
+    pageLocals.recentPendingApps = pageLocals.recentPendingApps || [];
+    pageLocals.recentWebhooks = pageLocals.recentWebhooks || [];
+  }
+  return pageLocals;
+}
+
 function renderPage(res, view, locals) {
   const viewsDir = path.join(__dirname, '..', 'views');
-  ejs.renderFile(path.join(viewsDir, view + '.ejs'), locals, (err, body) => {
-    if (err) return res.status(500).send(String(err));
-    ejs.renderFile(path.join(viewsDir, 'layout.ejs'), Object.assign({ body }, locals), (e2, html) =>
-      e2 ? res.status(500).send(String(e2)) : res.send(html));
+  const pageLocals = normalizePageLocals(view, locals);
+  ejs.renderFile(path.join(viewsDir, view + '.ejs'), pageLocals, (err, body) => {
+    if (err) {
+      console.error(`[admin] Failed to render ${view}:`, err);
+      return res.status(500).send('The admin portal could not load this page.');
+    }
+    ejs.renderFile(path.join(viewsDir, 'layout.ejs'), Object.assign({ body }, pageLocals), (e2, html) => {
+      if (e2) {
+        console.error('[admin] Failed to render layout:', e2);
+        return res.status(500).send('The admin portal could not load this page.');
+      }
+      return res.send(html);
+    });
   });
 }
 
@@ -516,3 +541,5 @@ module.exports = function adminRoutes(getDb) {
 
   return router;
 };
+
+module.exports.normalizePageLocals = normalizePageLocals;
