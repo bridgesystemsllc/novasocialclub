@@ -1,0 +1,28 @@
+<h1>Membership Levels</h1>
+<p><a href="/admin/levels/new" class="btn-primary">+ Add level</a></p>
+<% if (rows.length === 0) { %>
+<div class="empty-state">
+  <h3>No membership levels</h3>
+  <p>Create your first membership level to get started.</p>
+</div>
+<% } else { %>
+<table class="data"><thead><tr><th>Name</th><th>Slug</th><th>Active</th><th>Members</th><th>Actions</th></tr></thead><tbody>
+<% rows.forEach(function(l){ %>
+<tr>
+  <td><%= l.name %></td>
+  <td><code class="mono"><%= l.slug %></code></td>
+  <td><span class="badge <%= l.active ? 'badge-success' : 'badge-muted' %>"><%= l.active ? 'Yes' : 'No' %></span></td>
+  <td><%= l.member_count %></td>
+  <td>
+    <a href="/admin/levels/<%= l.id %>/edit">Edit</a>
+    <% if (rows.filter(r => r.active).length > 1 || !l.active) { %>
+    <form method="post" action="/admin/levels/<%= l.id %>/toggle" style="display:inline"<% if (l.active) { %> onsubmit="return confirm('Deactivate this level?');"<% } %>>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn-link"><%= l.active ? 'Deactivate' : 'Activate' %></button>
+    </form>
+    <% } %>
+  </td>
+</tr>
+<% }); %>
+</tbody></table>
+<% } %>

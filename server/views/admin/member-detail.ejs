@@ -1,18 +1,52 @@
 <p><a href="/admin/members">← All members</a></p>
-<h1><%= m.first_name %> <%= m.last_name %> <span class="badge"><%= m.status %></span></h1>
+<% if (typeof stripeMsg !== 'undefined' && stripeMsg) { %>
+<div class="alert <%= stripeMsg.type === 'success' ? 'alert-success' : 'alert-warning' %>">
+  <%= stripeMsg.text %>
+</div>
+<% } %>
+<h1><%= m.first_name %> <%= m.last_name %> <span class="badge <%= m.status === 'active' ? 'badge-success' : 'badge-danger' %>"><%= m.status %></span></h1>
 <div class="card">
   <p><b>Email:</b> <%= m.email %> &nbsp; <b>Phone:</b> <%= m.phone || '—' %></p>
   <p><b>Company:</b> <%= m.company || '—' %> &nbsp; <b>LinkedIn:</b> <%= m.linkedin || '—' %></p>
-  <p><b>Login:</b> <%= m.password_hash ? 'active' : 'not set yet' %></p>
+  <p><b>Login:</b> <span class="badge <%= m.password_hash ? 'badge-success' : 'badge-warning' %>"><%= m.password_hash ? 'active' : 'not set yet' %></span></p>
+</div>
+<div class="card">
+  <h3>Stripe Customer</h3>
+  <p><b>Customer ID:</b> <span class="mono"><%= m.stripe_customer_id || '—' %></span></p>
+  <form method="post" action="/admin/members/<%= m.id %>/sync-stripe-customer" class="actions">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button>Sync Stripe Customer</button>
+  </form>
+</div>
+<div class="card">
+  <h3>Billing</h3>
+  <% if (subscription && (subscription.status === 'active' || subscription.status === 'trialing')) { %>
+    <p><b>Subscription:</b> <span class="badge badge-success"><%= subscription.status %></span></p>
+    <% if (subscription.current_period_end) { %>
+      <p><b>Current period ends:</b> <%= new Date(subscription.current_period_end).toLocaleDateString() %></p>
+    <% } %>
+  <% } else { %>
+    <p><b>Subscription:</b> <span class="badge badge-muted">No active subscription</span></p>
+    <% if (!stripePriceId) { %>
+      <p class="alert alert-warning">STRIPE_PRICE_ID not configured</p>
+    <% } else if (!m.stripe_customer_id) { %>
+      <p class="alert alert-warning">Sync Stripe Customer first</p>
+    <% } else { %>
+      <form method="post" action="/admin/members/<%= m.id %>/start-billing" class="actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn-primary">Start billing — $100/mo</button>
+      </form>
+    <% } %>
+  <% } %>
 </div>
 <div class="card"><h3>Membership level</h3>
   <form method="post" action="/admin/members/<%= m.id %>/level" class="actions">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <select name="level"><% Object.keys(LEVELS).forEach(function(k){ %><option value="<%= k %>" <%= m.membership_level===k?'selected':'' %>><%= LEVELS[k] %></option><% }); %></select>
+    <select name="levelId"><% levels.forEach(function(l){ %><option value="<%= l.id %>" <%= m.membership_level_id===l.id?'selected':'' %>><%= l.name %></option><% }); %></select>
     <button class="btn-primary">Update level</button>
   </form>
   <h3>Status</h3>
-  <form method="post" action="/admin/members/<%= m.id %>/status" class="actions">
+  <form method="post" action="/admin/members/<%= m.id %>/status" class="actions" onsubmit="var sel = this.querySelector('select[name=status]'); if (sel.value === 'inactive' && '<%= m.status %>' === 'active') { return confirm('Deactivate this member?'); } return true;">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <select name="status"><option value="active" <%= m.status==='active'?'selected':'' %>>active</option><option value="inactive" <%= m.status==='inactive'?'selected':'' %>>inactive</option></select>
     <button>Update status</button>

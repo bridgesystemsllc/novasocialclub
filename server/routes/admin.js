@@ -9,12 +9,15 @@ const appsRepo = require('../repo/applications');
 const membersRepo = require('../repo/members');
 const subsRepo = require('../repo/subscribers');
 const partnersRepo = require('../repo/partners');
+const levelsRepo = require('../repo/levels');
+const webhookEventsRepo = require('../repo/webhook_events');
+const emailLogRepo = require('../repo/emailLog');
 const tokens = require('../tokens');
 const email = require('../email');
 const V = require('../validate');
 const { config } = require('../config');
-
-const LEVELS = { founding: 'Founding Member', member: 'Member', associate: 'Associate' };
+const { createOrRetrieveCustomer, createCheckoutSession } = require('../stripe');
+const subscriptionsRepo = require('../repo/subscriptions');
 
 function renderPage(res, view, locals) {
   const viewsDir = path.join(__dirname, '..', 'views');
@@ -63,38 +66,61 @@ module.exports = function adminRoutes(getDb) {
     const db = await getDb();
     const status = req.query.status || '';
     const rows = await appsRepo.list(db, status ? { status } : {});
-    renderPage(res, 'admin/applications', { title: 'Applications', nav: true, csrfToken: res.locals.csrfToken, rows, status, LEVELS });
+    const levels = await levelsRepo.listActive(db);
+    renderPage(res, 'admin/applications', { title: 'Applications', nav: true, csrfToken: res.locals.csrfToken, rows, status, levels });
   });
 
   router.get('/applications/:id', async (req, res) => {
     const db = await getDb();
     const a = await appsRepo.getById(db, Number(req.params.id));
     if (!a) return res.status(404).send('Not found');
-    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, csrfToken: res.locals.csrfToken, a, LEVELS });
+    const levels = await levelsRepo.listActive(db);
+    let stripeMsg = null;
+    if (req.query.stripe === 'synced') {
+      stripeMsg = { type: 'success', text: 'Application accepted. Member created. Stripe Customer synced.' };
+    } else if (req.query.stripe === 'failed') {
+      stripeMsg = { type: 'warning', text: `Member created. Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'} — retry from member detail.` };
+    }
+    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, csrfToken: res.locals.csrfToken, a, levels, stripeMsg });
   });
 
   router.post('/applications/:id/accept', async (req, res) => {
     const db = await getDb();
     const id = Number(req.params.id);
-    const level = String(req.body.level || '');
-    if (!LEVELS[level]) return res.status(400).send('Invalid level');
+    const levelId = Number(req.body.levelId);
+    const level = await levelsRepo.getById(db, levelId);
+    if (!level || !level.active) return res.status(400).send('Invalid level');
     const a = await appsRepo.getById(db, id);
     if (!a) return res.status(404).send('Not found');
-    await appsRepo.setStatus(db, id, 'accepted', level, new Date());
+    await appsRepo.setStatus(db, id, 'accepted', levelId, new Date());
     const existing = await membersRepo.getByEmail(db, a.email);
     const token = tokens.newToken();
     const expires = tokens.expiryFromNow(7);
     let member;
     if (existing) {
-      await membersRepo.setLevel(db, existing.id, level);
+      await membersRepo.setLevelId(db, existing.id, levelId);
       member = await membersRepo.setSetToken(db, existing.id, token, expires);
     } else {
-      member = await membersRepo.createFromApplication(db, a, level, token, expires);
+      member = await membersRepo.createFromApplication(db, a, levelId, token, expires);
     }
+
+    // Create Stripe Customer (non-blocking for membership)
+    let stripeMsg = '';
+    const stripeResult = await createOrRetrieveCustomer(member, a.id);
+    if (stripeResult.success) {
+      if (!stripeResult.existing) {
+        await membersRepo.setStripeCustomerId(db, member.id, stripeResult.customerId);
+      }
+      stripeMsg = 'stripe=synced';
+    } else {
+      stripeMsg = `stripe=failed&stripeError=${encodeURIComponent(stripeResult.error)}`;
+    }
+
+    // Welcome email must still send even if Stripe fails
     const url = `${config.appBaseUrl}/member/set-password?token=${token}`;
     const t = email.welcomeSetPasswordEmail(member, url);
     await email.sendEmail(db, { to: member.email, subject: t.subject, html: t.html, type: 'welcome_set_password', memberId: member.id });
-    res.redirect(`/admin/applications/${id}`);
+    res.redirect(`/admin/applications/${id}?${stripeMsg}`);
   });
 
   router.post('/applications/:id/reject', async (req, res) => {
@@ -119,22 +145,43 @@ module.exports = function adminRoutes(getDb) {
   router.get('/members', async (req, res) => {
     const db = await getDb();
     const q = req.query.q || '';
-    const rows = await membersRepo.list(db, q ? { q } : {});
-    renderPage(res, 'admin/members', { title: 'Members', nav: true, csrfToken: res.locals.csrfToken, rows, q, LEVELS });
+    const status = req.query.status || '';
+    const levelId = req.query.level_id || '';
+
+    const filters = {};
+    if (q) filters.q = q;
+    if (status === 'active' || status === 'inactive') filters.status = status;
+    if (levelId) filters.level_id = levelId;
+
+    const rows = await membersRepo.list(db, filters);
+    const levels = await levelsRepo.list(db);
+    renderPage(res, 'admin/members', { title: 'Members', nav: true, csrfToken: res.locals.csrfToken, rows, q, status, levelId, levels });
   });
 
   router.get('/members/:id', async (req, res) => {
     const db = await getDb();
     const m = await membersRepo.getById(db, Number(req.params.id));
     if (!m) return res.status(404).send('Not found');
-    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, LEVELS });
+    const levels = await levelsRepo.listActive(db);
+    const subscription = await subscriptionsRepo.getByMemberId(db, m.id);
+    let stripeMsg = null;
+    if (req.query.stripe === 'synced') {
+      stripeMsg = { type: 'success', text: 'Stripe Customer synced.' };
+    } else if (req.query.stripe === 'failed') {
+      stripeMsg = { type: 'warning', text: `Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'}. Retry from below.` };
+    } else if (req.query.billing === 'error') {
+      stripeMsg = { type: 'warning', text: req.query.billingError || 'Billing error' };
+    }
+    const stripePriceId = config.stripePriceId;
+    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, levels, stripeMsg, subscription, stripePriceId });
   });
 
   router.post('/members/:id/level', async (req, res) => {
     const db = await getDb();
-    const level = String(req.body.level || '');
-    if (!LEVELS[level]) return res.status(400).send('Invalid level');
-    await membersRepo.setLevel(db, Number(req.params.id), level);
+    const levelId = Number(req.body.levelId);
+    const level = await levelsRepo.getById(db, levelId);
+    if (!level || !level.active) return res.status(400).send('Invalid level');
+    await membersRepo.setLevelId(db, Number(req.params.id), levelId);
     res.redirect(`/admin/members/${req.params.id}`);
   });
 
@@ -165,6 +212,115 @@ module.exports = function adminRoutes(getDb) {
     const body = String(req.body.body || '');
     await email.sendEmail(db, { to: m.email, subject, html: `<div style="font-family:Georgia,serif">${body}</div>`, type: 'member_email', memberId: m.id });
     res.redirect(`/admin/members/${m.id}`);
+  });
+
+  router.post('/members/:id/sync-stripe-customer', async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, Number(req.params.id));
+    if (!m) return res.status(404).send('Not found');
+    const stripeResult = await createOrRetrieveCustomer(m, m.application_id);
+    if (stripeResult.success) {
+      if (!stripeResult.existing || !m.stripe_customer_id) {
+        await membersRepo.setStripeCustomerId(db, m.id, stripeResult.customerId);
+      }
+      res.redirect(`/admin/members/${m.id}?stripe=synced`);
+    } else {
+      res.redirect(`/admin/members/${m.id}?stripe=failed&stripeError=${encodeURIComponent(stripeResult.error)}`);
+    }
+  });
+
+  router.post('/members/:id/start-billing', async (req, res) => {
+    const db = await getDb();
+    const m = await membersRepo.getById(db, Number(req.params.id));
+    if (!m) return res.status(404).send('Not found');
+
+    if (!config.stripePriceId) {
+      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent('STRIPE_PRICE_ID not configured')}`);
+    }
+    if (!m.stripe_customer_id) {
+      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent('Sync Stripe Customer first')}`);
+    }
+
+    const successUrl = `${config.appBaseUrl}/member/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${config.appBaseUrl}/member/billing/cancel`;
+
+    const result = await createCheckoutSession(m, successUrl, cancelUrl);
+    if (!result.success) {
+      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent(result.error)}`);
+    }
+
+    await subscriptionsRepo.upsertIncomplete(db, m.id, config.stripePriceId);
+    res.redirect(result.url);
+  });
+
+  // Levels CRUD
+  router.get('/levels', async (req, res) => {
+    const db = await getDb();
+    const rows = await levelsRepo.list(db);
+    renderPage(res, 'admin/levels', { title: 'Membership Levels', nav: true, csrfToken: res.locals.csrfToken, rows });
+  });
+
+  router.get('/levels/new', async (req, res) => {
+    renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: null, error: null });
+  });
+
+  router.post('/levels', async (req, res) => {
+    const db = await getDb();
+    const name = V.cleanStr(req.body.name, 100);
+    if (!name) {
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: null, error: 'Name is required.' });
+    }
+    const slug = levelsRepo.slugify(name);
+    const existingBySlug = await levelsRepo.getBySlug(db, slug);
+    if (existingBySlug) {
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: { name }, error: 'A level with a similar name already exists.' });
+    }
+    const active = req.body.active === 'on';
+    await levelsRepo.create(db, { name, slug, active });
+    res.redirect('/admin/levels');
+  });
+
+  router.get('/levels/:id/edit', async (req, res) => {
+    const db = await getDb();
+    const level = await levelsRepo.getById(db, Number(req.params.id));
+    if (!level) return res.status(404).send('Not found');
+    renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: null });
+  });
+
+  router.post('/levels/:id', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const level = await levelsRepo.getById(db, id);
+    if (!level) return res.status(404).send('Not found');
+    const name = V.cleanStr(req.body.name, 100);
+    if (!name) {
+      return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: 'Name is required.' });
+    }
+    const active = req.body.active === 'on';
+    if (!active && level.active) {
+      const activeCount = await levelsRepo.countActive(db);
+      if (activeCount <= 1) {
+        return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: 'Keep at least one active membership level.' });
+      }
+    }
+    await levelsRepo.update(db, id, { name, active });
+    res.redirect('/admin/levels');
+  });
+
+  router.post('/levels/:id/toggle', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const level = await levelsRepo.getById(db, id);
+    if (!level) return res.status(404).send('Not found');
+    const newActive = !level.active;
+    if (!newActive) {
+      const activeCount = await levelsRepo.countActive(db);
+      if (activeCount <= 1) {
+        return res.status(400).send('Keep at least one active membership level.');
+      }
+    }
+    await levelsRepo.update(db, id, { active: newActive });
+    res.redirect('/admin/levels');
   });
 
   router.get('/newsletter', async (req, res) => {
@@ -199,6 +355,107 @@ module.exports = function adminRoutes(getDb) {
     const db = await getDb();
     const rows = await partnersRepo.list(db);
     renderPage(res, 'admin/partners', { title: 'Partners', nav: true, csrfToken: res.locals.csrfToken, rows });
+  });
+
+  router.get('/billing', async (req, res) => {
+    const db = await getDb();
+    const q = req.query.q || '';
+    const status = req.query.status || 'all';
+    const levelId = req.query.levelId || 'all';
+    const rows = await subscriptionsRepo.listWithMembers(db, { q, status, levelId });
+    const counts = await subscriptionsRepo.countsByStatus(db);
+    const levels = await levelsRepo.listActive(db);
+    renderPage(res, 'admin/billing', {
+      title: 'Billing',
+      nav: true,
+      csrfToken: res.locals.csrfToken,
+      rows,
+      counts,
+      levels,
+      q,
+      status,
+      levelId
+    });
+  });
+
+  router.get('/webhooks', async (req, res) => {
+    const db = await getDb();
+    const rows = await webhookEventsRepo.listRecent(db, 100);
+    const webhookSecretConfigured = Boolean(config.stripeWebhookSecret);
+    renderPage(res, 'admin/webhooks', {
+      title: 'Webhooks',
+      nav: true,
+      csrfToken: res.locals.csrfToken,
+      rows,
+      webhookSecretConfigured
+    });
+  });
+
+  router.get('/settings', (req, res) => {
+    const stripeKeysConfigured = Boolean(config.stripeSecretKey);
+    const stripeMode = config.stripeSecretKey.startsWith('sk_live') ? 'Live' : 'Test';
+    const stripePriceConfigured = Boolean(config.stripePriceId);
+    const webhookSecretConfigured = Boolean(config.stripeWebhookSecret);
+    const resendConfigured = Boolean(config.resendApiKey);
+    const resendFrom = config.resendFrom || '';
+    const appBaseUrl = config.appBaseUrl || '';
+    const isProd = config.isProd;
+
+    renderPage(res, 'admin/settings', {
+      title: 'Settings',
+      nav: true,
+      csrfToken: res.locals.csrfToken,
+      stripeKeysConfigured,
+      stripeMode,
+      stripePriceConfigured,
+      webhookSecretConfigured,
+      resendConfigured,
+      resendFrom,
+      appBaseUrl,
+      isProd
+    });
+  });
+
+  router.get('/email-log', async (req, res) => {
+    const db = await getDb();
+    const type = req.query.type || '';
+    const status = req.query.status || '';
+    const q = req.query.q || '';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 100;
+
+    const filters = {};
+    if (type) filters.type = type;
+    if (status) filters.status = status;
+    if (q) filters.q = q;
+    filters.page = page;
+    filters.limit = limit;
+
+    const [rows, total, types, statuses] = await Promise.all([
+      emailLogRepo.list(db, filters),
+      emailLogRepo.count(db, filters),
+      emailLogRepo.distinctTypes(db),
+      emailLogRepo.distinctStatuses(db)
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+    const hasFilters = !!(type || status || q);
+
+    renderPage(res, 'admin/email-log', {
+      title: 'Email Log',
+      nav: true,
+      csrfToken: res.locals.csrfToken,
+      rows,
+      type,
+      status,
+      q,
+      page,
+      totalPages,
+      total,
+      types,
+      statuses,
+      hasFilters
+    });
   });
 
   return router;

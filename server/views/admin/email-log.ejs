@@ -1,0 +1,85 @@
+<h1>Email Log</h1>
+<form method="get" action="/admin/email-log" class="actions" style="margin-bottom:18px">
+  <select name="type" style="max-width:180px">
+    <option value="" <%= type === '' ? 'selected' : '' %>>All types</option>
+    <% types.forEach(function(t){ %>
+    <option value="<%= t %>" <%= type === t ? 'selected' : '' %>><%= t %></option>
+    <% }); %>
+  </select>
+  <select name="status" style="max-width:140px">
+    <option value="" <%= status === '' ? 'selected' : '' %>>All statuses</option>
+    <% statuses.forEach(function(s){ %>
+    <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
+    <% }); %>
+  </select>
+  <input name="q" value="<%= q %>" placeholder="Search to_email" style="max-width:200px">
+  <button class="btn-primary">Apply</button>
+  <% if (hasFilters) { %>
+  <a href="/admin/email-log" style="padding:11px 18px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:8px;background:#fff">Clear</a>
+  <% } %>
+</form>
+<% if (rows.length === 0 && !hasFilters) { %>
+<div class="empty-state">
+  <h3>No emails logged yet</h3>
+  <p>Outbound email records will appear here.</p>
+</div>
+<% } else if (rows.length === 0 && hasFilters) { %>
+<div class="empty-state">
+  <h3>No matching emails</h3>
+  <p>Try adjusting your filters or <a href="/admin/email-log">clear filters</a>.</p>
+</div>
+<% } else { %>
+<table class="data">
+  <thead>
+    <tr>
+      <th>When</th>
+      <th>To</th>
+      <th>Subject</th>
+      <th>Type</th>
+      <th>Status</th>
+      <th>Member</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% rows.forEach(function(r){ %>
+    <tr>
+      <td><%= new Date(r.sent_at).toLocaleString() %></td>
+      <td><%= r.to_email %></td>
+      <td><%= r.subject.length > 40 ? r.subject.slice(0, 40) + '…' : r.subject %></td>
+      <td><span class="badge badge-muted"><%= r.type %></span></td>
+      <td>
+        <% if (r.status === 'sent') { %>
+        <span class="badge badge-success">sent</span>
+        <% } else if (r.status === 'failed') { %>
+        <span class="badge badge-danger" title="<%= r.error || '' %>">failed</span>
+        <% } else if (r.status === 'skipped') { %>
+        <span class="badge badge-warning">skipped</span>
+        <% } else { %>
+        <span class="badge"><%= r.status %></span>
+        <% } %>
+      </td>
+      <td>
+        <% if (r.member_id) { %>
+        <a href="/admin/members/<%= r.member_id %>"><%= r.first_name %> <%= r.last_name %></a>
+        <% } else { %>
+        —
+        <% } %>
+      </td>
+    </tr>
+    <% }); %>
+  </tbody>
+</table>
+<% if (totalPages > 1) { %>
+<div style="margin-top:16px;display:flex;align-items:center;gap:12px">
+  <% if (page > 1) { %>
+  <a href="/admin/email-log?type=<%= encodeURIComponent(type) %>&status=<%= encodeURIComponent(status) %>&q=<%= encodeURIComponent(q) %>&page=<%= page - 1 %>" style="padding:8px 14px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:6px;background:#fff">&larr; Prev</a>
+  <% } %>
+  <span style="color:#666;font-size:14px">Page <%= page %> of <%= totalPages %> (<%= total %> total)</span>
+  <% if (page < totalPages) { %>
+  <a href="/admin/email-log?type=<%= encodeURIComponent(type) %>&status=<%= encodeURIComponent(status) %>&q=<%= encodeURIComponent(q) %>&page=<%= page + 1 %>" style="padding:8px 14px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:6px;background:#fff">Next &rarr;</a>
+  <% } %>
+</div>
+<% } else if (rows.length > 0) { %>
+<p style="margin-top:12px;color:#666;font-size:13px">Showing <%= rows.length %> email<%= rows.length === 1 ? '' : 's' %><%= total > rows.length ? ' of ' + total + ' total' : '' %>.</p>
+<% } %>
+<% } %>

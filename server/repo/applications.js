@@ -10,11 +10,16 @@ async function create(db, v) {
 }
 
 async function list(db, { status } = {}) {
+  const baseQuery = `
+    SELECT a.*, ml.name as level_name
+    FROM applications a
+    LEFT JOIN membership_levels ml ON a.membership_level_id = ml.id
+  `;
   if (status) {
-    const { rows } = await db.query('SELECT * FROM applications WHERE status=$1 ORDER BY created_at DESC', [status]);
+    const { rows } = await db.query(baseQuery + ' WHERE a.status=$1 ORDER BY a.created_at DESC', [status]);
     return rows;
   }
-  const { rows } = await db.query('SELECT * FROM applications ORDER BY created_at DESC');
+  const { rows } = await db.query(baseQuery + ' ORDER BY a.created_at DESC');
   return rows;
 }
 
@@ -23,10 +28,10 @@ async function getById(db, id) {
   return rows[0] || null;
 }
 
-async function setStatus(db, id, status, level, reviewedAt) {
+async function setStatus(db, id, status, levelId, reviewedAt) {
   const { rows } = await db.query(
-    'UPDATE applications SET status=$2, membership_level=$3, reviewed_at=$4 WHERE id=$1 RETURNING *',
-    [id, status, level, reviewedAt]);
+    'UPDATE applications SET status=$2, membership_level_id=$3, reviewed_at=$4 WHERE id=$1 RETURNING *',
+    [id, status, levelId, reviewedAt]);
   return rows[0];
 }
 
