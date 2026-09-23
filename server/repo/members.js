@@ -67,6 +67,7 @@ async function getById(db, id) {
 
 async function getByEmail(db, email) { const { rows } = await db.query('SELECT * FROM members WHERE email=$1', [email]); return rows[0] || null; }
 async function getBySetToken(db, token) { const { rows } = await db.query('SELECT * FROM members WHERE set_password_token=$1', [token]); return rows[0] || null; }
+async function getByResetToken(db, token) { const { rows } = await db.query('SELECT * FROM members WHERE reset_password_token=$1', [token]); return rows[0] || null; }
 
 async function setPassword(db, id, hash) {
   const { rows } = await db.query(
@@ -78,6 +79,13 @@ async function setPassword(db, id, hash) {
 async function setStatus(db, id, status) { const { rows } = await db.query('UPDATE members SET status=$2 WHERE id=$1 RETURNING *', [id, status]); return rows[0]; }
 async function setLevelId(db, id, levelId) { const { rows } = await db.query('UPDATE members SET membership_level_id=$2 WHERE id=$1 RETURNING *', [id, levelId]); return rows[0]; }
 async function setSetToken(db, id, token, expires) { const { rows } = await db.query('UPDATE members SET set_password_token=$2, token_expires_at=$3 WHERE id=$1 RETURNING *', [id, token, expires]); return rows[0]; }
+async function setResetToken(db, id, token, expires) { const { rows } = await db.query('UPDATE members SET reset_password_token=$2, reset_token_expires_at=$3 WHERE id=$1 RETURNING *', [id, token, expires]); return rows[0]; }
+async function updatePasswordAndClearResetToken(db, id, hash) {
+  const { rows } = await db.query(
+    'UPDATE members SET password_hash=$2, reset_password_token=NULL, reset_token_expires_at=NULL WHERE id=$1 RETURNING *',
+    [id, hash]);
+  return rows[0];
+}
 async function setStripeCustomerId(db, id, stripeCustomerId) { const { rows } = await db.query('UPDATE members SET stripe_customer_id=$2 WHERE id=$1 RETURNING *', [id, stripeCustomerId]); return rows[0]; }
 
 async function getByStripeCustomerId(db, stripeCustomerId) {
@@ -105,4 +113,4 @@ async function updateProfile(db, id, profile) {
   return rows[0];
 }
 
-module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, setPassword, setStatus, setLevelId, setSetToken, setStripeCustomerId, getByStripeCustomerId, updateProfile };
+module.exports = { createFromApplication, list, getById, getByEmail, getBySetToken, getByResetToken, setPassword, setStatus, setLevelId, setSetToken, setResetToken, updatePasswordAndClearResetToken, setStripeCustomerId, getByStripeCustomerId, updateProfile };
