@@ -10,11 +10,20 @@
   <p>Create your first membership level to get started.</p>
 </div>
 <% } else { %>
-<table class="data"><thead><tr><th>Name</th><th>Slug</th><th>Active</th><th>Members</th><th>Actions</th></tr></thead><tbody>
+<%
+  function truncateDetails(s, max) {
+    if (!s) return '';
+    if (s.length <= max) return s;
+    return s.slice(0, max) + '…';
+  }
+%>
+<table class="data"><thead><tr><th>Name</th><th>Slug</th><th>Price</th><th>Details</th><th>Active</th><th>Members</th><th>Actions</th></tr></thead><tbody>
 <% rows.forEach(function(l){ %>
 <tr>
   <td><%= l.name %></td>
   <td><code class="mono"><%= l.slug %></code></td>
+  <td><%= formatLevelPrice(l.price_cents, l.billing_interval) || '—' %></td>
+  <td><%= truncateDetails(l.description, 80) %></td>
   <td><span class="badge <%= l.active ? 'badge-success' : 'badge-muted' %>"><%= l.active ? 'Yes' : 'No' %></span></td>
   <td><%= l.member_count %></td>
   <td>

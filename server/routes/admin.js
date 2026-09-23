@@ -16,7 +16,7 @@ const tokens = require('../tokens');
 const email = require('../email');
 const V = require('../validate');
 const { config } = require('../config');
-const { createOrRetrieveCustomer, createCheckoutSession } = require('../stripe');
+const { createOrRetrieveCustomer, createCheckoutSession, resolveCheckoutPriceId, formatLevelPrice } = require('../stripe');
 const subscriptionsRepo = require('../repo/subscriptions');
 
 function renderPage(res, view, locals) {
@@ -286,8 +286,9 @@ module.exports = function adminRoutes(getDb) {
     const m = await membersRepo.getById(db, Number(req.params.id));
     if (!m) return res.status(404).send('Not found');
 
-    if (!config.stripePriceId) {
-      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent('STRIPE_PRICE_ID not configured')}`);
+    const resolvedPriceId = resolveCheckoutPriceId(m.level_stripe_price_id, config.stripePriceId);
+    if (!resolvedPriceId) {
+      return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent('No Stripe Price configured for this membership level (set level Stripe Price ID or STRIPE_PRICE_ID)')}`);
     }
     if (!m.stripe_customer_id) {
       return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent('Sync Stripe Customer first')}`);
@@ -301,7 +302,7 @@ module.exports = function adminRoutes(getDb) {
       return res.redirect(`/admin/members/${m.id}?billing=error&billingError=${encodeURIComponent(result.error)}`);
     }
 
-    await subscriptionsRepo.upsertIncomplete(db, m.id, config.stripePriceId);
+    await subscriptionsRepo.upsertIncomplete(db, m.id, resolvedPriceId);
     res.redirect(result.url);
   });
 
@@ -309,7 +310,7 @@ module.exports = function adminRoutes(getDb) {
   router.get('/levels', async (req, res) => {
     const db = await getDb();
     const rows = await levelsRepo.list(db);
-    renderPage(res, 'admin/levels', { title: 'Membership Levels', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, rows });
+    renderPage(res, 'admin/levels', { title: 'Membership Levels', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, rows, formatLevelPrice });
   });
 
   router.get('/levels/new', async (req, res) => {
@@ -319,16 +320,39 @@ module.exports = function adminRoutes(getDb) {
   router.post('/levels', async (req, res) => {
     const db = await getDb();
     const name = V.cleanStr(req.body.name, 100);
+    const description = V.cleanStr(req.body.description, 4000) || null;
+    const priceRaw = String(req.body.price || '').trim();
+    const intervalRaw = String(req.body.billing_interval || '').trim().toLowerCase();
+    const stripePriceIdRaw = String(req.body.stripe_price_id || '').trim() || null;
+
+    const formLevel = { name, description, price: priceRaw, billing_interval: intervalRaw || 'month', stripe_price_id: stripePriceIdRaw };
+
     if (!name) {
-      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: null, error: 'Name is required.' });
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: formLevel, error: 'Name is required.' });
     }
+
+    let priceCents = null;
+    if (priceRaw !== '') {
+      const priceNum = parseFloat(priceRaw);
+      if (!Number.isFinite(priceNum) || priceNum < 0 || priceNum > 999999.99) {
+        return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: formLevel, error: 'Invalid price.' });
+      }
+      priceCents = Math.round(priceNum * 100);
+    }
+
+    const billingInterval = intervalRaw === 'year' ? 'year' : 'month';
+
+    if (stripePriceIdRaw && !/^price_[A-Za-z0-9]+$/.test(stripePriceIdRaw)) {
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: formLevel, error: 'Stripe Price ID must look like price_…' });
+    }
+
     const slug = levelsRepo.slugify(name);
     const existingBySlug = await levelsRepo.getBySlug(db, slug);
     if (existingBySlug) {
-      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: { name }, error: 'A level with a similar name already exists.' });
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: formLevel, error: 'A level with a similar name already exists.' });
     }
     const active = req.body.active === 'on';
-    await levelsRepo.create(db, { name, slug, active });
+    await levelsRepo.create(db, { name, slug, active, description, priceCents, billingInterval, stripePriceId: stripePriceIdRaw });
     res.redirect('/admin/levels');
   });
 
@@ -344,18 +368,42 @@ module.exports = function adminRoutes(getDb) {
     const id = Number(req.params.id);
     const level = await levelsRepo.getById(db, id);
     if (!level) return res.status(404).send('Not found');
+
     const name = V.cleanStr(req.body.name, 100);
+    const description = V.cleanStr(req.body.description, 4000) || null;
+    const priceRaw = String(req.body.price || '').trim();
+    const intervalRaw = String(req.body.billing_interval || '').trim().toLowerCase();
+    const stripePriceIdRaw = String(req.body.stripe_price_id || '').trim() || null;
+
+    const formLevel = { ...level, name, description, price: priceRaw, billing_interval: intervalRaw || level.billing_interval || 'month', stripe_price_id: stripePriceIdRaw };
+
     if (!name) {
-      return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level, error: 'Name is required.' });
+      return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: formLevel, error: 'Name is required.' });
     }
+
+    let priceCents = null;
+    if (priceRaw !== '') {
+      const priceNum = parseFloat(priceRaw);
+      if (!Number.isFinite(priceNum) || priceNum < 0 || priceNum > 999999.99) {
+        return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: formLevel, error: 'Invalid price.' });
+      }
+      priceCents = Math.round(priceNum * 100);
+    }
+
+    const billingInterval = intervalRaw === 'year' ? 'year' : 'month';
+
+    if (stripePriceIdRaw && !/^price_[A-Za-z0-9]+$/.test(stripePriceIdRaw)) {
+      return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: formLevel, error: 'Stripe Price ID must look like price_…' });
+    }
+
     const active = req.body.active === 'on';
     if (!active && level.active) {
       const activeCount = await levelsRepo.countActive(db);
       if (activeCount <= 1) {
-        return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level, error: 'Keep at least one active membership level.' });
+        return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: formLevel, error: 'Keep at least one active membership level.' });
       }
     }
-    await levelsRepo.update(db, id, { name, active });
+    await levelsRepo.update(db, id, { name, active, description, priceCents, billingInterval, stripePriceId: stripePriceIdRaw });
     res.redirect('/admin/levels');
   });
 
