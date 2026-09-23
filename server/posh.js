@@ -82,4 +82,8 @@ async function refreshEvents(db, force = false) {
   return activeSync;
 }
 
-module.exports = { eventsRepo, refreshEvents };
+function getPoshSyncHealth() {
+  return { lastSuccessfulSyncAt };
+}
+
+module.exports = { eventsRepo, refreshEvents, getPoshSyncHealth };

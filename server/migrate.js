@@ -112,6 +112,23 @@ CREATE TABLE IF NOT EXISTS newsletter_broadcasts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS posh_events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  event_url TEXT NOT NULL,
+  starts_at TIMESTAMPTZ NOT NULL,
+  venue_name TEXT,
+  city TEXT,
+  description TEXT,
+  image_url TEXT,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS event_ticket_sends (
+  event_id TEXT NOT NULL REFERENCES posh_events(id) ON DELETE CASCADE,
+  member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, member_id)
+);
 `;
 
 async function migrate(db) {
@@ -286,6 +303,43 @@ async function migrate(db) {
         error TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+  } catch (err) {
+    if (!err.message.includes('already exists')) {
+      throw err;
+    }
+  }
+
+  // Add posh_events table for existing databases
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS posh_events (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        event_url TEXT NOT NULL,
+        starts_at TIMESTAMPTZ NOT NULL,
+        venue_name TEXT,
+        city TEXT,
+        description TEXT,
+        image_url TEXT,
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+  } catch (err) {
+    if (!err.message.includes('already exists')) {
+      throw err;
+    }
+  }
+
+  // Add event_ticket_sends table for existing databases
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS event_ticket_sends (
+        event_id TEXT NOT NULL REFERENCES posh_events(id) ON DELETE CASCADE,
+        member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (event_id, member_id)
       )
     `);
   } catch (err) {

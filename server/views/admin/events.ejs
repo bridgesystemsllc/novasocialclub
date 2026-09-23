@@ -1,0 +1,55 @@
+<div class="page-header">
+  <h1>Events</h1>
+  <div class="page-header-actions">
+    <form method="post" action="/admin/events/refresh" style="display:inline">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn-primary" onclick="this.disabled=true;this.form.submit();">Refresh from Posh</button>
+    </form>
+  </div>
+</div>
+
+<% if (ok) { %>
+<div class="alert alert-success"><%= ok %></div>
+<% } %>
+<% if (err) { %>
+<div class="alert alert-warning"><%= err %></div>
+<% } %>
+
+<p class="text-muted" style="margin-bottom:16px">
+  <% if (lastSyncAt) { %>
+  Last sync: <%= new Date(lastSyncAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) %> ET
+  <% } else { %>
+  Never synced
+  <% } %>
+</p>
+
+<% if (events.length === 0) { %>
+<div class="empty-state">
+  <h3>No upcoming events synced</h3>
+  <p>Refresh from Posh or check connector configuration.</p>
+</div>
+<% } else { %>
+<table class="data"><thead><tr>
+  <th>Title</th>
+  <th>Starts (ET)</th>
+  <th>Venue / City</th>
+  <th>Actions</th>
+</tr></thead><tbody>
+<% events.forEach(function(e){ 
+  var startsAt = new Date(e.startsAt);
+  var dateStr = startsAt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+  var venueCity = [e.venueName, e.city].filter(Boolean).join(', ') || '—';
+%>
+<tr>
+  <td><a href="/admin/events/<%= e.id %>"><%= e.title %></a></td>
+  <td><%= dateStr %></td>
+  <td><%= venueCity %></td>
+  <td>
+    <a href="<%= e.eventUrl %>" target="_blank" rel="noopener">Open on Posh</a>
+    &nbsp;|&nbsp;
+    <a href="/admin/events/<%= e.id %>">Detail</a>
+  </td>
+</tr>
+<% }); %>
+</tbody></table>
+<% } %>

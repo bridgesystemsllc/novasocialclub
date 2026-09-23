@@ -127,4 +127,33 @@ async function updateProfile(db, id, profile) {
   return rows[0];
 }
 
-module.exports = { createFromApplication, list, getById, getByEmail, getByApplicationId, getBySetToken, getByResetToken, setPassword, setStatus, setLevelId, setSetToken, setResetToken, updatePasswordAndClearResetToken, setStripeCustomerId, getByStripeCustomerId, updateProfile };
+async function listEligibleMembers(db, { levelId = null } = {}) {
+  const conditions = [
+    'm.status = $1',
+    's.status IN ($2, $3)'
+  ];
+  const params = ['active', 'active', 'trialing'];
+  let idx = 4;
+
+  if (levelId !== null && levelId !== undefined && levelId !== '') {
+    const levelIdNum = parseInt(levelId, 10);
+    if (!isNaN(levelIdNum) && levelIdNum > 0) {
+      conditions.push(`m.membership_level_id = $${idx}`);
+      params.push(levelIdNum);
+      idx++;
+    }
+  }
+
+  const { rows } = await db.query(`
+    SELECT m.id, m.first_name, m.last_name, m.email, m.membership_level_id,
+           l.name as level_name
+      FROM members m
+      JOIN subscriptions s ON s.member_id = m.id
+      LEFT JOIN membership_levels l ON l.id = m.membership_level_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY m.last_name, m.first_name
+  `, params);
+  return rows;
+}
+
+module.exports = { createFromApplication, list, getById, getByEmail, getByApplicationId, getBySetToken, getByResetToken, setPassword, setStatus, setLevelId, setSetToken, setResetToken, updatePasswordAndClearResetToken, setStripeCustomerId, getByStripeCustomerId, updateProfile, listEligibleMembers };
