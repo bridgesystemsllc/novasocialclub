@@ -1,6 +1,8 @@
 'use strict';
 
 const { config } = require('./config');
+const subscriptionsRepo = require('./repo/subscriptions');
+const { sendEmail, paymentRequestEmail } = require('./email');
 
 let stripeInstance = null;
 
@@ -105,4 +107,37 @@ async function createOrRetrieveCustomer(member, applicationId) {
   }
 }
 
-module.exports = { getStripe, createOrRetrieveCustomer, createCheckoutSession, resolveCheckoutPriceId, formatLevelPrice };
+async function emailPaymentLinkToMember(db, member, { successUrl, cancelUrl }) {
+  if (!member.stripe_customer_id) {
+    return { ok: false, error: 'Sync Stripe Customer first' };
+  }
+
+  const resolvedPriceId = resolveCheckoutPriceId(member.level_stripe_price_id, config.stripePriceId);
+  if (!resolvedPriceId) {
+    return { ok: false, error: 'No Stripe Price configured' };
+  }
+
+  const result = await createCheckoutSession(member, successUrl, cancelUrl);
+  if (!result.success) {
+    return { ok: false, error: result.error };
+  }
+
+  await subscriptionsRepo.upsertIncomplete(db, member.id, resolvedPriceId);
+
+  const emailContent = paymentRequestEmail(member, result.url);
+  const emailResult = await sendEmail(db, {
+    to: member.email,
+    subject: emailContent.subject,
+    html: emailContent.html,
+    type: 'payment_request',
+    memberId: member.id
+  });
+
+  if (!emailResult.ok) {
+    return { ok: false, error: 'Checkout session created but email failed to send', sessionCreated: true };
+  }
+
+  return { ok: true };
+}
+
+module.exports = { getStripe, createOrRetrieveCustomer, createCheckoutSession, emailPaymentLinkToMember, resolveCheckoutPriceId, formatLevelPrice };

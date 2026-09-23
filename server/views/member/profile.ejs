@@ -1,5 +1,10 @@
 <div class="card">
   <h1>Profile</h1>
+  <% if (showOnboardingBanner) { %>
+    <div class="alert alert-info" style="background:#e7f3ff;border-color:#b6d4fe;color:#084298">
+      Complete your profile to finish joining NOVA.
+    </div>
+  <% } %>
   <% if (success) { %>
     <div class="alert alert-success"><%= success %></div>
   <% } %>

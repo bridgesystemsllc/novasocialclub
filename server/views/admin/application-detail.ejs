@@ -52,6 +52,48 @@
   </div>
 </div>
 <% } %>
+<% if (a.status === 'accepted') { %>
+<div class="card">
+  <h3>Member onboarding</h3>
+  <% if (member) { %>
+    <p>
+      <b>Member:</b> <%= member.first_name %> <%= member.last_name %>
+      <a href="/admin/members/<%= member.id %>" class="btn" style="margin-left:12px">Open member</a>
+    </p>
+    <p>
+      <b>Login:</b> <span class="badge <%= member.password_hash ? 'badge-success' : 'badge-warning' %>"><%= member.password_hash ? 'active' : 'not set yet' %></span>
+      &nbsp;
+      <b>Stripe:</b> <span class="mono"><%= member.stripe_customer_id || '—' %></span>
+      &nbsp;
+      <b>Sub:</b> <span class="badge <%= hasActiveSub ? 'badge-success' : 'badge-muted' %>"><%= subscription ? subscription.status : 'none' %></span>
+    </p>
+    <div class="actions" style="margin-top:12px">
+      <form method="post" action="/admin/applications/<%= a.id %>/resend-onboarding" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit">Resend onboarding email</button>
+      </form>
+      <% if (!hasActiveSub) { %>
+      <form method="post" action="/admin/applications/<%= a.id %>/email-payment-link" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn-primary">Email payment link</button>
+      </form>
+      <% } %>
+    </div>
+    <% if (!member.stripe_customer_id) { %>
+    <div class="actions" style="margin-top:8px">
+      <form method="post" action="/admin/applications/<%= a.id %>/sync-stripe-customer" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit">Sync Stripe Customer</button>
+      </form>
+    </div>
+    <% } %>
+  <% } else { %>
+    <div class="alert alert-warning">
+      No member record linked. Create was expected on Accept — contact eng / re-run Accept path.
+    </div>
+  <% } %>
+</div>
+<% } %>
 <div class="card">
   <h3>Private notes</h3>
   <form method="post" action="/admin/applications/<%= a.id %>/notes">
