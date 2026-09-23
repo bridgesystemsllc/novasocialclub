@@ -6,6 +6,16 @@
   </div>
 </div>
 
+<% if (scheduled) { %>
+<div class="alert alert-success">Broadcast scheduled successfully.</div>
+<% } %>
+<% if (scheduleError) { %>
+<div class="alert alert-error"><%= scheduleError %></div>
+<% } %>
+<% if (cancelError) { %>
+<div class="alert alert-error"><%= cancelError %></div>
+<% } %>
+
 <div class="card"><h3 class="mt-0">Send a broadcast</h3>
   <form method="post" action="/admin/newsletter/broadcast">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -14,6 +24,54 @@
     <button class="btn-primary">Send to all subscribers</button>
   </form>
 </div>
+
+<div class="card"><h3 class="mt-0">Schedule a broadcast</h3>
+  <form method="post" action="/admin/newsletter/schedule">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Subject<input name="subject" required></label>
+    <label>Body (HTML allowed)<textarea name="body" rows="8" required></textarea></label>
+    <label>Send at (America/New_York)<input type="datetime-local" name="scheduled_at_local" required></label>
+    <button class="btn-primary">Schedule</button>
+  </form>
+</div>
+
+<div class="card"><h3 class="mt-0">Scheduled / recent broadcasts</h3>
+<% if (broadcasts && broadcasts.length > 0) { %>
+<table class="data">
+  <thead>
+    <tr>
+      <th>Subject</th>
+      <th>Send at (ET)</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+  <% broadcasts.forEach(function(b) {
+    var etDate = new Date(b.scheduled_at).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  %><tr>
+      <td><%= b.subject.length > 40 ? b.subject.substring(0, 40) + '…' : b.subject %></td>
+      <td><%= etDate %> ET</td>
+      <td><%= b.status %></td>
+      <td>
+        <% if (b.status === 'scheduled') { %>
+        <form method="post" action="/admin/newsletter/broadcasts/<%= b.id %>/cancel" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn-secondary btn-small">Cancel</button>
+        </form>
+        <% } else { %>
+        —
+        <% } %>
+      </td>
+    </tr><% }); %>
+  </tbody>
+</table>
+<% } else { %>
+<p>No scheduled or recent broadcasts yet.</p>
+<% } %>
+</div>
+
+<h3>Subscribers</h3>
 <table class="data"><thead><tr><th>Email</th><th>Status</th><th>Joined</th></tr></thead><tbody>
 <% rows.forEach(function(s){ %><tr><td><%= s.email %></td><td><%= s.status %></td><td><%= new Date(s.created_at).toLocaleDateString() %></td></tr><% }); %>
 </tbody></table>

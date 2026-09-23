@@ -21,4 +21,9 @@ async function unsubscribe(db, token) {
 
 async function activeEmails(db) { const { rows } = await db.query("SELECT email FROM newsletter_subscribers WHERE status='subscribed'"); return rows.map(r => r.email); }
 
-module.exports = { subscribe, list, getByToken, unsubscribe, activeEmails };
+async function activeSubscribers(db) {
+  const { rows } = await db.query("SELECT email, unsubscribe_token FROM newsletter_subscribers WHERE status='subscribed'");
+  return rows;
+}
+
+module.exports = { subscribe, list, getByToken, unsubscribe, activeEmails, activeSubscribers };

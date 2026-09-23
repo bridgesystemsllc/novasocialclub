@@ -100,6 +100,18 @@ CREATE TABLE IF NOT EXISTS stripe_webhook_events (
   type TEXT NOT NULL,
   processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS newsletter_broadcasts (
+  id SERIAL PRIMARY KEY,
+  subject TEXT NOT NULL,
+  body_html TEXT NOT NULL,
+  scheduled_at TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL,
+  created_by_admin_id INTEGER,
+  sent_at TIMESTAMPTZ,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 async function migrate(db) {
@@ -252,6 +264,28 @@ async function migrate(db) {
         event_id TEXT PRIMARY KEY,
         type TEXT NOT NULL,
         processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+  } catch (err) {
+    if (!err.message.includes('already exists')) {
+      throw err;
+    }
+  }
+
+  // Add newsletter_broadcasts table for existing databases
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS newsletter_broadcasts (
+        id SERIAL PRIMARY KEY,
+        subject TEXT NOT NULL,
+        body_html TEXT NOT NULL,
+        scheduled_at TIMESTAMPTZ NOT NULL,
+        status TEXT NOT NULL,
+        created_by_admin_id INTEGER,
+        sent_at TIMESTAMPTZ,
+        error TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
   } catch (err) {
