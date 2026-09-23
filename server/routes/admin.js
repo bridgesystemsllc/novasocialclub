@@ -3,6 +3,38 @@ const express = require('express');
 const ejs = require('ejs');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
+
+function parseEtToUtc(localDatetimeStr) {
+  const [datePart, timePart] = localDatetimeStr.split('T');
+  if (!datePart || !timePart) return null;
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute] = timePart.split(':').map(Number);
+  if ([year, month, day, hour, minute].some(v => isNaN(v))) return null;
+
+  const testDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const jan = new Date(Date.UTC(year, 0, 1, 12, 0, 0));
+  const jul = new Date(Date.UTC(year, 6, 1, 12, 0, 0));
+
+  const janOffset = getOffsetForDateInNY(jan);
+  const julOffset = getOffsetForDateInNY(jul);
+  const stdOffset = Math.max(janOffset, julOffset);
+  const dstOffset = Math.min(janOffset, julOffset);
+
+  const dateOffset = getOffsetForDateInNY(testDate);
+  const isDst = dateOffset === dstOffset;
+  const offsetHours = isDst ? 4 : 5;
+
+  const utc = new Date(Date.UTC(year, month - 1, day, hour + offsetHours, minute, 0));
+  return utc;
+}
+
+function getOffsetForDateInNY(date) {
+  const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
+  const nyStr = date.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const utcDate = new Date(utcStr);
+  const nyDate = new Date(nyStr);
+  return (utcDate - nyDate) / (60 * 60 * 1000);
+}
 const auth = require('../auth');
 const admins = require('../repo/admins');
 const appsRepo = require('../repo/applications');
@@ -18,6 +50,7 @@ const V = require('../validate');
 const { config } = require('../config');
 const { createOrRetrieveCustomer, createCheckoutSession } = require('../stripe');
 const subscriptionsRepo = require('../repo/subscriptions');
+const broadcastsRepo = require('../repo/newsletterBroadcasts');
 
 function normalizePageLocals(view, locals) {
   const pageLocals = Object.assign({}, locals);
@@ -402,8 +435,24 @@ module.exports = function adminRoutes(getDb) {
 
   router.get('/newsletter', async (req, res) => {
     const db = await getDb();
-    const rows = await subsRepo.list(db);
-    renderPage(res, 'admin/newsletter', { title: 'Newsletter', nav: true, path: 'newsletter', csrfToken: res.locals.csrfToken, rows });
+    const [rows, broadcasts] = await Promise.all([
+      subsRepo.list(db),
+      broadcastsRepo.listRecent(db, 50)
+    ]);
+    const scheduled = req.query.scheduled === '1';
+    const cancelError = req.query.cancelError || null;
+    const scheduleError = req.query.scheduleError || null;
+    renderPage(res, 'admin/newsletter', {
+      title: 'Newsletter',
+      nav: true,
+      path: 'newsletter',
+      csrfToken: res.locals.csrfToken,
+      rows,
+      broadcasts,
+      scheduled,
+      cancelError,
+      scheduleError
+    });
   });
 
   router.get('/newsletter/export.csv', async (req, res) => {
@@ -424,6 +473,49 @@ module.exports = function adminRoutes(getDb) {
       const unsub = `${config.appBaseUrl}/unsubscribe?token=${s.unsubscribe_token}`;
       const t = email.broadcastEmail(subject, body, unsub);
       await email.sendEmail(db, { to: s.email, subject: t.subject, html: t.html, type: 'broadcast' });
+    }
+    res.redirect('/admin/newsletter');
+  });
+
+  router.post('/newsletter/schedule', async (req, res) => {
+    const db = await getDb();
+    const subject = V.cleanStr(req.body.subject, 200);
+    const body = String(req.body.body || '').trim();
+    const scheduledAtLocal = String(req.body.scheduled_at_local || '').trim();
+
+    if (!subject || !body) {
+      return res.redirect('/admin/newsletter?scheduleError=' + encodeURIComponent('Subject and body are required.'));
+    }
+    if (!scheduledAtLocal) {
+      return res.redirect('/admin/newsletter?scheduleError=' + encodeURIComponent('Schedule time is required.'));
+    }
+
+    const scheduledAtUtc = parseEtToUtc(scheduledAtLocal);
+    if (!scheduledAtUtc) {
+      return res.redirect('/admin/newsletter?scheduleError=' + encodeURIComponent('Invalid schedule time format.'));
+    }
+
+    const now = new Date();
+    if (scheduledAtUtc <= now) {
+      return res.redirect('/admin/newsletter?scheduleError=' + encodeURIComponent('Schedule time must be in the future (America/New_York).'));
+    }
+
+    await broadcastsRepo.createScheduled(db, {
+      subject,
+      bodyHtml: body,
+      scheduledAtUtc,
+      createdByAdminId: req.session.adminId || null
+    });
+
+    res.redirect('/admin/newsletter?scheduled=1');
+  });
+
+  router.post('/newsletter/broadcasts/:id/cancel', async (req, res) => {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const cancelled = await broadcastsRepo.cancelIfScheduled(db, id);
+    if (!cancelled) {
+      return res.redirect('/admin/newsletter?cancelError=' + encodeURIComponent('Cannot cancel — broadcast already sending/sent/cancelled/failed.'));
     }
     res.redirect('/admin/newsletter');
   });

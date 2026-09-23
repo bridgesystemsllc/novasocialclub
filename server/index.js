@@ -38,6 +38,7 @@ function createApp(opts = {}) {
 if (require.main === module) {
   const { getDb } = require('./db');
   const { migrate } = require('./migrate');
+  const { startNewsletterBroadcastPoller } = require('./jobs/newsletterBroadcastPoller');
 
   (async () => {
     const db = await getDb();
@@ -50,11 +51,15 @@ if (require.main === module) {
     });
     server.ref();
 
+    const pollerInterval = startNewsletterBroadcastPoller(getDb, { intervalMs: 60000 });
+    console.log('Newsletter broadcast poller started (60s interval).');
+
     // Keep the event loop alive and handle graceful shutdown.
     const keepAlive = setInterval(() => {}, 1 << 30);
     function shutdown(signal) {
       console.log(`Received ${signal}, shutting down…`);
       clearInterval(keepAlive);
+      clearInterval(pollerInterval);
       server.close(() => process.exit(0));
     }
     process.on('SIGTERM', () => shutdown('SIGTERM'));
