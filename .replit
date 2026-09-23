@@ -31,6 +31,7 @@ build = ["bash", "-c", "node server/migrate.js && node server/seed-admin.js"]
 
 [userenv.shared]
 ADMIN_EMAIL = "Marcus@thenovasocialclub.com"
+SUPPORT_ADMIN_EMAIL = "support@bridgesystemsllc.com"
 
 [workflows]
 runButton = "Project"

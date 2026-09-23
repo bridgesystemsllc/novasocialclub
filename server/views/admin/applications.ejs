@@ -1,6 +1,9 @@
-<h1>Applications</h1>
-<div class="actions" style="margin-bottom:18px">
-  <a class="badge <%= !status ? 'badge-muted' : '' %>" href="/admin/applications">All</a>
+<div class="page-header">
+  <h1>Applications</h1>
+</div>
+
+<div class="filters-row">
+  <a class="badge <%= !status ? 'badge-info' : '' %>" href="/admin/applications">All</a>
   <a class="badge <%= status === 'pending' ? 'badge-warning' : '' %>" href="/admin/applications?status=pending">Pending</a>
   <a class="badge <%= status === 'waitlisted' ? 'badge-info' : '' %>" href="/admin/applications?status=waitlisted">Waitlisted</a>
   <a class="badge <%= status === 'follow_up' ? 'badge-secondary' : '' %>" href="/admin/applications?status=follow_up">Follow-up</a>

@@ -1,10 +1,15 @@
-<p><a href="/admin/members">← All members</a></p>
+<div class="page-header">
+  <div>
+    <p class="text-muted mb-0" style="margin-bottom:4px"><a href="/admin/members">← All members</a></p>
+    <h1 class="mt-0"><%= m.first_name %> <%= m.last_name %> <span class="badge <%= m.status === 'active' ? 'badge-success' : 'badge-danger' %>"><%= m.status %></span></h1>
+  </div>
+</div>
+
 <% if (typeof stripeMsg !== 'undefined' && stripeMsg) { %>
 <div class="alert <%= stripeMsg.type === 'success' ? 'alert-success' : 'alert-warning' %>">
   <%= stripeMsg.text %>
 </div>
 <% } %>
-<h1><%= m.first_name %> <%= m.last_name %> <span class="badge <%= m.status === 'active' ? 'badge-success' : 'badge-danger' %>"><%= m.status %></span></h1>
 <div class="card">
   <p><b>Email:</b> <%= m.email %> &nbsp; <b>Phone:</b> <%= m.phone || '—' %></p>
   <p><b>Company:</b> <%= m.company || '—' %> &nbsp; <b>LinkedIn:</b> <%= m.linkedin || '—' %></p>

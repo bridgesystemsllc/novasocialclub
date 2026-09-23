@@ -1148,6 +1148,7 @@ p {
 }
 .footer__legal {
   display: flex;
+  align-items: center;
   gap: 1.5rem;
 }
 .footer__legal a {
@@ -1156,6 +1157,16 @@ p {
   transition: color 0.2s;
 }
 .footer__legal a:hover { color: rgba(255,255,255,0.7); }
+.footer__legal .footer__admin {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 999px;
+  color: rgba(255,255,255,0.7);
+}
+.footer__legal .footer__admin:hover {
+  border-color: rgba(255,255,255,0.65);
+  color: var(--white);
+}
 
 .footer__contact {
   text-align: center;

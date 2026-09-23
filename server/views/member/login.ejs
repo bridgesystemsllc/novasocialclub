@@ -1,5 +1,6 @@
 <div class="card auth-card">
   <h1>Member login</h1>
+  <% if (success) { %><p class="success"><%= success %></p><% } %>
   <% if (error) { %><p class="error"><%= error %></p><% } %>
   <form method="post" action="/member/login">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -7,4 +8,5 @@
     <label>Password<input type="password" name="password" required></label>
     <button class="btn-primary">Log in</button>
   </form>
+  <p><a href="/member/forgot-password">Forgot password?</a></p>
 </div>

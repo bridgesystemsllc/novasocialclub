@@ -1,4 +1,14 @@
-<h1>Partner inquiries</h1>
+<div class="page-header">
+  <h1>Partner inquiries</h1>
+</div>
+
+<% if (rows.length === 0) { %>
+<div class="empty-state">
+  <h3>No partner inquiries yet</h3>
+  <p>Partner inquiries will appear here when submitted.</p>
+</div>
+<% } else { %>
 <table class="data"><thead><tr><th>Business</th><th>Contact</th><th>Email</th><th>Message</th><th>When</th></tr></thead><tbody>
 <% rows.forEach(function(p){ %><tr><td><%= p.business %></td><td><%= p.contact_name || '' %></td><td><%= p.email %></td><td><%= p.message || '' %></td><td><%= new Date(p.created_at).toLocaleDateString() %></td></tr><% }); %>
 </tbody></table>
+<% } %>

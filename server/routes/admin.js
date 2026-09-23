@@ -53,13 +53,39 @@ module.exports = function adminRoutes(getDb) {
 
   router.get('/', async (req, res) => {
     const db = await getDb();
-    const all = await appsRepo.list(db, {});
-    const counts = {
-      pending: all.filter(a => a.status === 'pending').length,
-      members: (await membersRepo.list(db, {})).length,
-      subscribers: (await subsRepo.activeEmails(db)).length,
+    const sinceDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [
+      pendingApps,
+      activeMembers,
+      billingCounts,
+      webhookCount24h,
+      emailFailCount,
+      recentWebhooks
+    ] = await Promise.all([
+      appsRepo.list(db, { status: 'pending' }),
+      membersRepo.list(db, { status: 'active' }),
+      subscriptionsRepo.countsByStatus(db),
+      webhookEventsRepo.countSince(db, sinceDate),
+      emailLogRepo.count(db, { status: 'failed' }),
+      webhookEventsRepo.listRecent(db, 8)
+    ]);
+    const kpis = {
+      pendingApps: pendingApps.length,
+      activeMembers: activeMembers.length,
+      billingIssues: billingCounts.past_due,
+      webhookEvents24h: webhookCount24h,
+      emailFailures: emailFailCount
     };
-    renderPage(res, 'admin/dashboard', { title: 'Dashboard', nav: true, csrfToken: res.locals.csrfToken, counts, recent: all.slice(0, 10) });
+    const recentPendingApps = pendingApps.slice(0, 8);
+    renderPage(res, 'admin/dashboard', {
+      title: 'Dashboard',
+      nav: true,
+      path: 'dashboard',
+      csrfToken: res.locals.csrfToken,
+      kpis,
+      recentPendingApps,
+      recentWebhooks
+    });
   });
 
   router.get('/applications', async (req, res) => {
@@ -67,7 +93,7 @@ module.exports = function adminRoutes(getDb) {
     const status = req.query.status || '';
     const rows = await appsRepo.list(db, status ? { status } : {});
     const levels = await levelsRepo.listActive(db);
-    renderPage(res, 'admin/applications', { title: 'Applications', nav: true, csrfToken: res.locals.csrfToken, rows, status, levels });
+    renderPage(res, 'admin/applications', { title: 'Applications', nav: true, path: 'applications', csrfToken: res.locals.csrfToken, rows, status, levels });
   });
 
   router.get('/applications/:id', async (req, res) => {
@@ -81,7 +107,7 @@ module.exports = function adminRoutes(getDb) {
     } else if (req.query.stripe === 'failed') {
       stripeMsg = { type: 'warning', text: `Member created. Stripe Customer sync failed: ${req.query.stripeError || 'Unknown error'} — retry from member detail.` };
     }
-    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, csrfToken: res.locals.csrfToken, a, levels, stripeMsg });
+    renderPage(res, 'admin/application-detail', { title: 'Application', nav: true, path: 'applications', csrfToken: res.locals.csrfToken, a, levels, stripeMsg });
   });
 
   router.post('/applications/:id/accept', async (req, res) => {
@@ -181,7 +207,7 @@ module.exports = function adminRoutes(getDb) {
 
     const rows = await membersRepo.list(db, filters);
     const levels = await levelsRepo.list(db);
-    renderPage(res, 'admin/members', { title: 'Members', nav: true, csrfToken: res.locals.csrfToken, rows, q, status, levelId, levels });
+    renderPage(res, 'admin/members', { title: 'Members', nav: true, path: 'members', csrfToken: res.locals.csrfToken, rows, q, status, levelId, levels });
   });
 
   router.get('/members/:id', async (req, res) => {
@@ -199,7 +225,7 @@ module.exports = function adminRoutes(getDb) {
       stripeMsg = { type: 'warning', text: req.query.billingError || 'Billing error' };
     }
     const stripePriceId = config.stripePriceId;
-    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, csrfToken: res.locals.csrfToken, m, levels, stripeMsg, subscription, stripePriceId });
+    renderPage(res, 'admin/member-detail', { title: 'Member', nav: true, path: 'members', csrfToken: res.locals.csrfToken, m, levels, stripeMsg, subscription, stripePriceId });
   });
 
   router.post('/members/:id/level', async (req, res) => {
@@ -283,23 +309,23 @@ module.exports = function adminRoutes(getDb) {
   router.get('/levels', async (req, res) => {
     const db = await getDb();
     const rows = await levelsRepo.list(db);
-    renderPage(res, 'admin/levels', { title: 'Membership Levels', nav: true, csrfToken: res.locals.csrfToken, rows });
+    renderPage(res, 'admin/levels', { title: 'Membership Levels', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, rows });
   });
 
   router.get('/levels/new', async (req, res) => {
-    renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: null, error: null });
+    renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: null, error: null });
   });
 
   router.post('/levels', async (req, res) => {
     const db = await getDb();
     const name = V.cleanStr(req.body.name, 100);
     if (!name) {
-      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: null, error: 'Name is required.' });
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: null, error: 'Name is required.' });
     }
     const slug = levelsRepo.slugify(name);
     const existingBySlug = await levelsRepo.getBySlug(db, slug);
     if (existingBySlug) {
-      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, csrfToken: res.locals.csrfToken, level: { name }, error: 'A level with a similar name already exists.' });
+      return renderPage(res, 'admin/level-form', { title: 'Add Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level: { name }, error: 'A level with a similar name already exists.' });
     }
     const active = req.body.active === 'on';
     await levelsRepo.create(db, { name, slug, active });
@@ -310,7 +336,7 @@ module.exports = function adminRoutes(getDb) {
     const db = await getDb();
     const level = await levelsRepo.getById(db, Number(req.params.id));
     if (!level) return res.status(404).send('Not found');
-    renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: null });
+    renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level, error: null });
   });
 
   router.post('/levels/:id', async (req, res) => {
@@ -320,13 +346,13 @@ module.exports = function adminRoutes(getDb) {
     if (!level) return res.status(404).send('Not found');
     const name = V.cleanStr(req.body.name, 100);
     if (!name) {
-      return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: 'Name is required.' });
+      return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level, error: 'Name is required.' });
     }
     const active = req.body.active === 'on';
     if (!active && level.active) {
       const activeCount = await levelsRepo.countActive(db);
       if (activeCount <= 1) {
-        return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, csrfToken: res.locals.csrfToken, level, error: 'Keep at least one active membership level.' });
+        return renderPage(res, 'admin/level-form', { title: 'Edit Level', nav: true, path: 'levels', csrfToken: res.locals.csrfToken, level, error: 'Keep at least one active membership level.' });
       }
     }
     await levelsRepo.update(db, id, { name, active });
@@ -352,7 +378,7 @@ module.exports = function adminRoutes(getDb) {
   router.get('/newsletter', async (req, res) => {
     const db = await getDb();
     const rows = await subsRepo.list(db);
-    renderPage(res, 'admin/newsletter', { title: 'Newsletter', nav: true, csrfToken: res.locals.csrfToken, rows });
+    renderPage(res, 'admin/newsletter', { title: 'Newsletter', nav: true, path: 'newsletter', csrfToken: res.locals.csrfToken, rows });
   });
 
   router.get('/newsletter/export.csv', async (req, res) => {
@@ -380,7 +406,7 @@ module.exports = function adminRoutes(getDb) {
   router.get('/partners', async (req, res) => {
     const db = await getDb();
     const rows = await partnersRepo.list(db);
-    renderPage(res, 'admin/partners', { title: 'Partners', nav: true, csrfToken: res.locals.csrfToken, rows });
+    renderPage(res, 'admin/partners', { title: 'Partners', nav: true, path: 'partners', csrfToken: res.locals.csrfToken, rows });
   });
 
   router.get('/billing', async (req, res) => {
@@ -394,6 +420,7 @@ module.exports = function adminRoutes(getDb) {
     renderPage(res, 'admin/billing', {
       title: 'Billing',
       nav: true,
+      path: 'billing',
       csrfToken: res.locals.csrfToken,
       rows,
       counts,
@@ -411,6 +438,7 @@ module.exports = function adminRoutes(getDb) {
     renderPage(res, 'admin/webhooks', {
       title: 'Webhooks',
       nav: true,
+      path: 'webhooks',
       csrfToken: res.locals.csrfToken,
       rows,
       webhookSecretConfigured
@@ -430,6 +458,7 @@ module.exports = function adminRoutes(getDb) {
     renderPage(res, 'admin/settings', {
       title: 'Settings',
       nav: true,
+      path: 'settings',
       csrfToken: res.locals.csrfToken,
       stripeKeysConfigured,
       stripeMode,
@@ -470,6 +499,7 @@ module.exports = function adminRoutes(getDb) {
     renderPage(res, 'admin/email-log', {
       title: 'Email Log',
       nav: true,
+      path: 'email-log',
       csrfToken: res.locals.csrfToken,
       rows,
       type,

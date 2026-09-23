@@ -1,20 +1,36 @@
-<h1>Billing</h1>
-<div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
-  <div class="stat"><span class="num"><%= counts.active %></span><span class="lbl">Active</span></div>
-  <div class="stat"><span class="num"><%= counts.past_due %></span><span class="lbl">Past due</span></div>
-  <div class="stat"><span class="num"><%= counts.canceled %></span><span class="lbl">Canceled</span></div>
-  <div class="stat"><span class="num"><%= counts.none %></span><span class="lbl">No subscription</span></div>
+<div class="page-header">
+  <h1>Billing</h1>
 </div>
-<form method="get" action="/admin/billing" class="actions" style="margin-bottom:18px">
-  <input name="q" value="<%= q %>" placeholder="Search name or email" style="max-width:220px">
-  <select name="status" style="max-width:140px">
+
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+  <a href="/admin/billing?status=active" class="kpi-card">
+    <span class="kpi-num"><%= counts.active %></span>
+    <span class="kpi-label">Active</span>
+  </a>
+  <a href="/admin/billing?status=past_due" class="kpi-card">
+    <span class="kpi-num"><%= counts.past_due %></span>
+    <span class="kpi-label">Past due</span>
+  </a>
+  <a href="/admin/billing?status=canceled" class="kpi-card">
+    <span class="kpi-num"><%= counts.canceled %></span>
+    <span class="kpi-label">Canceled</span>
+  </a>
+  <a href="/admin/billing?status=none" class="kpi-card">
+    <span class="kpi-num"><%= counts.none %></span>
+    <span class="kpi-label">No subscription</span>
+  </a>
+</div>
+
+<form method="get" action="/admin/billing" class="filters-row">
+  <input name="q" value="<%= q %>" placeholder="Search name or email">
+  <select name="status">
     <option value="all" <%= status === 'all' ? 'selected' : '' %>>All statuses</option>
     <option value="active" <%= status === 'active' ? 'selected' : '' %>>Active</option>
     <option value="past_due" <%= status === 'past_due' ? 'selected' : '' %>>Past due</option>
     <option value="canceled" <%= status === 'canceled' ? 'selected' : '' %>>Canceled</option>
     <option value="none" <%= status === 'none' ? 'selected' : '' %>>No subscription</option>
   </select>
-  <select name="levelId" style="max-width:140px">
+  <select name="levelId">
     <option value="all" <%= levelId === 'all' ? 'selected' : '' %>>All levels</option>
     <% levels.forEach(function(l){ %>
     <option value="<%= l.id %>" <%= String(levelId) === String(l.id) ? 'selected' : '' %>><%= l.name %></option>

@@ -1,12 +1,84 @@
-<h1>Dashboard</h1>
-<div class="stat-grid">
-  <div class="stat"><span class="num"><%= counts.pending %></span><span class="lbl">Pending applications</span></div>
-  <div class="stat"><span class="num"><%= counts.members %></span><span class="lbl">Members</span></div>
-  <div class="stat"><span class="num"><%= counts.subscribers %></span><span class="lbl">Subscribers</span></div>
+<div class="page-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="subtitle">Membership operations overview</p>
+  </div>
 </div>
-<h2>Recent applications</h2>
-<table class="data"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>When</th></tr></thead><tbody>
-<% recent.forEach(function(a){ %>
-  <tr><td><a href="/admin/applications/<%= a.id %>"><%= a.first_name %> <%= a.last_name %></a></td><td><%= a.email %></td><td><%= a.status %></td><td><%= new Date(a.created_at).toLocaleDateString() %></td></tr>
-<% }); %>
-</tbody></table>
+
+<div class="kpi-grid">
+  <a href="/admin/applications?status=pending" class="kpi-card">
+    <span class="kpi-num"><%= kpis.pendingApps %></span>
+    <span class="kpi-label">Pending applications</span>
+  </a>
+  <a href="/admin/members?status=active" class="kpi-card">
+    <span class="kpi-num"><%= kpis.activeMembers %></span>
+    <span class="kpi-label">Active members</span>
+  </a>
+  <a href="/admin/billing?status=past_due" class="kpi-card">
+    <span class="kpi-num"><%= kpis.billingIssues %></span>
+    <span class="kpi-label">Billing issues</span>
+  </a>
+  <a href="/admin/webhooks" class="kpi-card">
+    <span class="kpi-num"><%= kpis.webhookEvents24h %></span>
+    <span class="kpi-label">Webhook events (24h)</span>
+  </a>
+  <a href="/admin/email-log?status=failed" class="kpi-card">
+    <span class="kpi-num"><%= kpis.emailFailures %></span>
+    <span class="kpi-label">Email failures</span>
+  </a>
+</div>
+
+<div class="queues-grid">
+  <div class="queue-section">
+    <h2>Pending applications</h2>
+    <% if (recentPendingApps.length === 0) { %>
+    <div class="empty-state">
+      <h3>No pending applications</h3>
+      <p>New applications will appear here for review.</p>
+    </div>
+    <% } else { %>
+    <table class="data">
+      <thead><tr><th>Name</th><th>Email</th><th>When</th></tr></thead>
+      <tbody>
+      <% recentPendingApps.forEach(function(a){ %>
+        <tr>
+          <td><a href="/admin/applications/<%= a.id %>"><%= a.first_name %> <%= a.last_name %></a></td>
+          <td><%= a.email %></td>
+          <td><%= new Date(a.created_at).toLocaleDateString() %></td>
+        </tr>
+      <% }); %>
+      </tbody>
+    </table>
+    <% if (kpis.pendingApps > 8) { %>
+    <p class="text-muted" style="margin-top:10px;font-size:13px">
+      <a href="/admin/applications?status=pending">View all <%= kpis.pendingApps %> pending →</a>
+    </p>
+    <% } %>
+    <% } %>
+  </div>
+
+  <div class="queue-section">
+    <h2>Recent webhooks</h2>
+    <% if (recentWebhooks.length === 0) { %>
+    <div class="empty-state">
+      <h3>No webhook events yet</h3>
+      <p>Stripe webhook events will appear here.</p>
+    </div>
+    <% } else { %>
+    <table class="data">
+      <thead><tr><th>Time</th><th>Type</th></tr></thead>
+      <tbody>
+      <% recentWebhooks.forEach(function(r){ %>
+        <tr>
+          <td><%= new Date(r.processed_at).toLocaleString() %></td>
+          <td><span class="mono"><%= r.type %></span></td>
+        </tr>
+      <% }); %>
+      </tbody>
+    </table>
+    <p class="text-muted" style="margin-top:10px;font-size:13px">
+      <a href="/admin/webhooks">View all webhooks →</a>
+    </p>
+    <% } %>
+  </div>
+</div>

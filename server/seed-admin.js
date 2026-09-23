@@ -7,9 +7,27 @@ async function run(db) {
   if (!config.adminEmail || !config.adminPassword) {
     throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required to seed the admin.');
   }
-  const hash = await hashPassword(config.adminPassword);
-  const admin = await admins.upsert(db, config.adminEmail.toLowerCase(), hash);
-  return admin;
+
+  const credentials = [
+    { email: config.adminEmail, password: config.adminPassword },
+  ];
+
+  if (config.supportAdminEmail || config.supportAdminPassword) {
+    if (!config.supportAdminEmail || !config.supportAdminPassword) {
+      throw new Error('SUPPORT_ADMIN_EMAIL and SUPPORT_ADMIN_PASSWORD must both be set.');
+    }
+    credentials.push({
+      email: config.supportAdminEmail,
+      password: config.supportAdminPassword,
+    });
+  }
+
+  const seeded = [];
+  for (const credential of credentials) {
+    const hash = await hashPassword(credential.password);
+    seeded.push(await admins.upsert(db, credential.email.toLowerCase(), hash));
+  }
+  return seeded;
 }
 
 module.exports = { run };
@@ -18,8 +36,8 @@ if (require.main === module) {
   (async () => {
     const { getDb, closeDb } = require('./db');
     const db = await getDb();
-    const a = await run(db);
-    console.log(`Admin seeded: ${a.email}`);
+    const seeded = await run(db);
+    console.log(`Admins seeded: ${seeded.map((admin) => admin.email).join(', ')}`);
     await closeDb();
   })();
 }

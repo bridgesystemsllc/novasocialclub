@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS members (
   password_hash TEXT,
   set_password_token TEXT,
   token_expires_at TIMESTAMPTZ,
+  reset_password_token TEXT,
+  reset_token_expires_at TIMESTAMPTZ,
   stripe_customer_id TEXT UNIQUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -106,6 +108,22 @@ async function migrate(db) {
     await db.query(`
       ALTER TABLE members ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT UNIQUE
     `);
+  } catch (err) {
+    if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
+      throw err;
+    }
+  }
+
+  // Add reset_password_token columns for forgot-password flow (for existing databases)
+  try {
+    await db.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS reset_password_token TEXT`);
+  } catch (err) {
+    if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
+      throw err;
+    }
+  }
+  try {
+    await db.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMPTZ`);
   } catch (err) {
     if (!err.message.includes('already exists') && !err.message.includes('duplicate column')) {
       throw err;

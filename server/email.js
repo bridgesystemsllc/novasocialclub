@@ -55,6 +55,13 @@ function welcomeSetPasswordEmail(member, url) {
      <p>This link expires in 7 days.</p>`) };
 }
 
+function passwordResetEmail(member, url) {
+  return { subject: 'Reset your NOVA Social Club password', html: wrap(
+    `<h2>Password reset</h2><p>Hi ${esc(member.first_name)}, we received a request to reset your password for The NOVA Social Club.</p>
+     <p><a href="${esc(url)}" style="background:#111;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px">Reset your password</a></p>
+     <p>This link expires in 1 hour. If you didn't request this, you can ignore this email.</p>`) };
+}
+
 function rejectionEmail(app) {
   return { subject: 'An update on your NOVA Social Club application', html: wrap(
     `<h2>Thank you for applying</h2><p>Hi ${esc(app.first_name)}, thank you for your interest in The NOVA Social Club. We're unable to extend an invitation at this time, but we'd welcome a future application.</p>`) };
@@ -84,6 +91,6 @@ function subscriptionCanceledEmail(member) {
 module.exports = {
   sendEmail, __setSender,
   applicationReceivedEmail, adminNotifyEmail, welcomeSetPasswordEmail,
-  rejectionEmail, newsletterConfirmEmail, broadcastEmail,
+  passwordResetEmail, rejectionEmail, newsletterConfirmEmail, broadcastEmail,
   paymentFailedEmail, subscriptionCanceledEmail,
 };
