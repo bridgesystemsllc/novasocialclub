@@ -18,4 +18,12 @@ async function record(db, eventId, type) {
   return rows[0] || null;
 }
 
-module.exports = { findById, record };
+async function listRecent(db, limit = 100) {
+  const { rows } = await db.query(
+    'SELECT * FROM stripe_webhook_events ORDER BY processed_at DESC LIMIT $1',
+    [limit]
+  );
+  return rows;
+}
+
+module.exports = { findById, record, listRecent };

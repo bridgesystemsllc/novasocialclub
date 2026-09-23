@@ -16,13 +16,17 @@
   <a href="/admin/members" style="padding:11px 18px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:8px;background:#fff">Clear</a>
 </form>
 <% if (rows.length === 0) { %>
-<p>No members match these filters.</p>
+<div class="empty-state">
+  <h3>No members match these filters</h3>
+  <p>Try adjusting your search criteria or <a href="/admin/members">clear filters</a>.</p>
+</div>
 <% } else { %>
 <table class="data"><thead><tr><th>Name</th><th>Email</th><th>Level</th><th>Status</th><th>Login set?</th></tr></thead><tbody>
 <% rows.forEach(function(m){ %>
 <tr><td><a href="/admin/members/<%= m.id %>"><%= m.first_name %> <%= m.last_name %></a></td>
-<td><%= m.email %></td><td><%= m.level_name || '—' %></td><td><%= m.status %></td>
-<td><%= m.password_hash ? 'yes' : 'pending' %></td></tr>
+<td><%= m.email %></td><td><%= m.level_name || '—' %></td>
+<td><span class="badge <%= m.status === 'active' ? 'badge-success' : 'badge-danger' %>"><%= m.status %></span></td>
+<td><span class="badge <%= m.password_hash ? 'badge-success' : 'badge-warning' %>"><%= m.password_hash ? 'yes' : 'pending' %></span></td></tr>
 <% }); %>
 </tbody></table>
 <% } %>

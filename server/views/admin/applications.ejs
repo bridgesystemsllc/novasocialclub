@@ -1,15 +1,28 @@
 <h1>Applications</h1>
-<div class="actions">
-  <a class="badge" href="/admin/applications">All</a>
-  <a class="badge" href="/admin/applications?status=pending">Pending</a>
-  <a class="badge" href="/admin/applications?status=accepted">Accepted</a>
-  <a class="badge" href="/admin/applications?status=rejected">Rejected</a>
+<div class="actions" style="margin-bottom:18px">
+  <a class="badge <%= !status ? 'badge-muted' : '' %>" href="/admin/applications">All</a>
+  <a class="badge <%= status === 'pending' ? 'badge-warning' : '' %>" href="/admin/applications?status=pending">Pending</a>
+  <a class="badge <%= status === 'accepted' ? 'badge-success' : '' %>" href="/admin/applications?status=accepted">Accepted</a>
+  <a class="badge <%= status === 'rejected' ? 'badge-danger' : '' %>" href="/admin/applications?status=rejected">Rejected</a>
 </div>
+<% if (rows.length === 0) { %>
+<div class="empty-state">
+  <h3>No applications found</h3>
+  <p>Applications will appear here when they are submitted.</p>
+</div>
+<% } else { %>
 <table class="data"><thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Status</th><th>Level</th><th>When</th></tr></thead><tbody>
-<% rows.forEach(function(a){ %>
+<% rows.forEach(function(a){
+  var statusClass = '';
+  if (a.status === 'pending') statusClass = 'badge-warning';
+  else if (a.status === 'accepted') statusClass = 'badge-success';
+  else if (a.status === 'rejected') statusClass = 'badge-danger';
+%>
 <tr><td><a href="/admin/applications/<%= a.id %>"><%= a.first_name %> <%= a.last_name %></a></td>
-<td><%= a.email %></td><td><%= a.company || '' %></td><td><%= a.status %></td>
-<td><%= a.membership_level ? LEVELS[a.membership_level] : '' %></td>
+<td><%= a.email %></td><td><%= a.company || '—' %></td>
+<td><span class="badge <%= statusClass %>"><%= a.status %></span></td>
+<td><%= a.level_name || '—' %></td>
 <td><%= new Date(a.created_at).toLocaleDateString() %></td></tr>
 <% }); %>
 </tbody></table>
+<% } %>

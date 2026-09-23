@@ -23,7 +23,10 @@
   <button class="btn-primary">Filter</button>
 </form>
 <% if (rows.length === 0) { %>
-<p>No subscription rows yet.</p>
+<div class="empty-state">
+  <h3>No subscription rows yet</h3>
+  <p>Billing records will appear here once members have subscriptions.</p>
+</div>
 <% } else { %>
 <table class="data"><thead><tr>
   <th>Name</th>
@@ -35,15 +38,22 @@
   <th>Customer ID</th>
   <th>Actions</th>
 </tr></thead><tbody>
-<% rows.forEach(function(r){ %>
+<% rows.forEach(function(r){ 
+  var statusClass = '';
+  var statusLabel = r.subscription_status || '—';
+  if (r.subscription_status === 'active' || r.subscription_status === 'trialing') statusClass = 'badge-success';
+  else if (r.subscription_status === 'past_due') statusClass = 'badge-warning';
+  else if (r.subscription_status === 'canceled') statusClass = 'badge-danger';
+  else if (!r.subscription_status) statusClass = 'badge-muted';
+%>
 <tr>
   <td><a href="/admin/members/<%= r.member_id %>"><%= r.first_name %> <%= r.last_name %></a></td>
   <td><%= r.email %></td>
   <td><%= r.level_name || '—' %></td>
-  <td><%= r.subscription_status || '—' %></td>
+  <td><span class="badge <%= statusClass %>"><%= statusLabel %></span></td>
   <td><%= r.current_period_end ? new Date(r.current_period_end).toLocaleDateString() : '—' %></td>
-  <td style="font-family:monospace;font-size:12px"><%= r.stripe_subscription_id ? r.stripe_subscription_id.slice(0, 20) + '…' : '—' %></td>
-  <td style="font-family:monospace;font-size:12px"><%= r.stripe_customer_id ? r.stripe_customer_id.slice(0, 18) + '…' : '—' %></td>
+  <td class="mono"><%= r.stripe_subscription_id ? r.stripe_subscription_id.slice(0, 20) + '…' : '—' %></td>
+  <td class="mono"><%= r.stripe_customer_id ? r.stripe_customer_id.slice(0, 18) + '…' : '—' %></td>
   <td>
     <a href="/admin/members/<%= r.member_id %>">View</a>
     <% if (r.stripe_customer_id) { %>

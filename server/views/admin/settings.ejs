@@ -1,0 +1,88 @@
+<h1>Settings</h1>
+<p style="color:#666;font-size:14px">Read-only configuration health check</p>
+
+<div class="card">
+  <h3>Stripe Configuration</h3>
+  <table class="data" style="margin-top:12px">
+    <tbody>
+      <tr>
+        <td style="width:200px">API Keys</td>
+        <td>
+          <% if (stripeKeysConfigured) { %>
+          <span class="badge badge-success"><%= stripeMode %> mode configured <span class="check">✓</span></span>
+          <% } else { %>
+          <span class="badge badge-danger">not configured</span>
+          <% } %>
+        </td>
+      </tr>
+      <tr>
+        <td>Price ID</td>
+        <td>
+          <% if (stripePriceConfigured) { %>
+          <span class="badge badge-success">set <span class="check">✓</span></span>
+          <% } else { %>
+          <span class="badge badge-warning">not set</span>
+          <% } %>
+        </td>
+      </tr>
+      <tr>
+        <td>Webhook Secret</td>
+        <td>
+          <% if (webhookSecretConfigured) { %>
+          <span class="badge badge-success">set <span class="check">✓</span></span>
+          <% } else { %>
+          <span class="badge badge-warning">not set</span>
+          <% } %>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Email Configuration</h3>
+  <table class="data" style="margin-top:12px">
+    <tbody>
+      <tr>
+        <td style="width:200px">Resend API Key</td>
+        <td>
+          <% if (resendConfigured) { %>
+          <span class="badge badge-success">configured <span class="check">✓</span></span>
+          <% } else { %>
+          <span class="badge badge-warning">not configured</span>
+          <% } %>
+        </td>
+      </tr>
+      <tr>
+        <td>From Address</td>
+        <td>
+          <% if (resendFrom) { %>
+          <span><%= resendFrom %></span>
+          <% } else { %>
+          <span class="badge badge-muted">default</span>
+          <% } %>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Application</h3>
+  <table class="data" style="margin-top:12px">
+    <tbody>
+      <tr>
+        <td style="width:200px">Base URL</td>
+        <td><%= appBaseUrl %></td>
+      </tr>
+      <tr>
+        <td>Environment</td>
+        <td>
+          <span class="badge <%= isProd ? 'badge-warning' : 'badge-muted' %>"><%= isProd ? 'production' : 'development' %></span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p style="margin-top:18px;color:#666;font-size:13px">No secret values are shown on this page. Configuration changes require environment variable updates.</p>
