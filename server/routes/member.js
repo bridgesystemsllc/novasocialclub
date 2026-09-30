@@ -185,7 +185,8 @@ module.exports = function memberRoutes(getDb) {
         m: { ...m, ...value },
         levelLabel: m.level_name || 'Member',
         error: errors.join(' '),
-        success: null
+        success: null,
+        showOnboardingBanner: false
       });
     }
     try {
@@ -199,7 +200,8 @@ module.exports = function memberRoutes(getDb) {
         m: { ...m, ...value },
         levelLabel: m.level_name || 'Member',
         error: 'Failed to update profile. Please try again.',
-        success: null
+        success: null,
+        showOnboardingBanner: false
       });
     }
   });
