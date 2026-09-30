@@ -185,7 +185,7 @@ test('createCheckoutSession returns error when price not configured', async () =
   );
   
   expect(result.success).toBe(false);
-  expect(result.error).toBe('STRIPE_PRICE_ID not configured');
+  expect(result.error).toBe('No Stripe Price configured for this membership level (set level Stripe Price ID or STRIPE_PRICE_ID)');
   
   config.stripeSecretKey = originalKey;
   config.stripePriceId = originalPrice;

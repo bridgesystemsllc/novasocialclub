@@ -49,7 +49,7 @@ test('accepting an application creates a member and logs welcome email', async (
   const { rows } = await db.query('SELECT * FROM members WHERE email=$1', ['ada@x.com']);
   expect(rows.length).toBe(1);
   expect(rows[0].set_password_token).toBeTruthy();
-  const { rows: log } = await db.query("SELECT * FROM email_log WHERE type='welcome_set_password'");
+  const { rows: log } = await db.query("SELECT * FROM email_log WHERE type='onboarding'");
   expect(log.length).toBe(1);
   server.close(); await db.close();
 });
